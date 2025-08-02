@@ -20,6 +20,9 @@ class DashboardWindow(QWidget):
         self.init_ui()
 
     def init_ui(self):
+        # Layout geral vertical para permitir rodapé embaixo
+        main_vertical_layout = QVBoxLayout()
+
         # Layout geral horizontal: esquerda gráfico, direita lista + botões
         main_layout = QHBoxLayout()
 
@@ -54,11 +57,21 @@ class DashboardWindow(QWidget):
 
         self.transactions_group.setLayout(right_layout)
 
-        # Adicionar grupos ao layout principal
+        # Adicionar grupos ao layout horizontal principal
         main_layout.addWidget(self.chart_group, 3)   # ocupa 3 partes do espaço
         main_layout.addWidget(self.transactions_group, 5)  # 5 partes do espaço
 
-        self.setLayout(main_layout)
+        # Adiciona o layout horizontal no layout vertical principal
+        main_vertical_layout.addLayout(main_layout)
+
+        # Rodapé com direitos reservados
+        footer_label = QLabel("Direitos Reservados à Croma Company - Departamento de Softwares")
+        footer_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        footer_label.setStyleSheet("color: gray; font-size: 10px; margin-top: 10px;")
+        main_vertical_layout.addWidget(footer_label)
+
+        # Aplica layout vertical na janela
+        self.setLayout(main_vertical_layout)
 
         # Inicializa gráfico vazio
         self.update_dashboard()
@@ -85,12 +98,10 @@ class DashboardWindow(QWidget):
         self.balance_label.setText(f"Saldo: R$ {saldo:.2f}")
 
     def update_chart(self):
-        # Limpa figura
         self.chart_canvas.figure.clear()
 
         ax = self.chart_canvas.figure.add_subplot(111)
 
-        # Soma receitas e despesas
         receita = sum(tx["valor"] for tx in self.transactions if tx["tipo"].lower() == "receita")
         despesa = sum(tx["valor"] for tx in self.transactions if tx["tipo"].lower() == "despesa")
 
@@ -103,7 +114,6 @@ class DashboardWindow(QWidget):
         ax.set_ylabel("Valor (R$)")
         ax.grid(axis='y', linestyle='--', alpha=0.7)
 
-        # Atualiza gráfico
         self.chart_canvas.draw()
 
     def open_transaction_form(self):
