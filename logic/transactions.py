@@ -15,6 +15,16 @@ def add_transaction(data):
         dict: A response indicating success or failure.
     """
     try:
+        # Garante que a data esteja no formato correto ou insere a data atual
+        if 'data' not in data or not data['data']:
+            data['data'] = datetime.now().strftime('%d/%m/%Y')
+        else:
+            try:
+                # Valida o formato informado
+                datetime.strptime(data['data'], '%d/%m/%Y')
+            except ValueError:
+                return {"status": "error", "message": "Data inválida. Use o formato dd/mm/yyyy."}
+
         db_add_transaction(data)
         return {"status": "success", "message": "Transaction added successfully."}
     except Exception as e:
