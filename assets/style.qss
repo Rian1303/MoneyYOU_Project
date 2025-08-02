@@ -46,3 +46,9 @@ QLabel#dashboardTitle {
     color: #7C3AED;
     font-weight: bold;
 }
+
+#footerLabel {
+    color: gray;
+    font-size: 10px;
+    margin-top: 10px;
+}
