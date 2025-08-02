@@ -1,50 +1,47 @@
-from PyQt6.QtWidgets import QWidget, QLabel, QHBoxLayout, QVBoxLayout
-from PyQt6.QtGui import QColor, QPalette
+# ui/widgets/transaction_card.py
+
+from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel, QHBoxLayout, QFrame
+from PyQt6.QtGui import QColor
 from PyQt6.QtCore import Qt
 
 class TransactionCard(QWidget):
-    def __init__(self, desc: str, valor: float, tipo: str):
+    def __init__(self, transaction):
         super().__init__()
-        self.desc = desc
-        self.valor = valor
-        self.tipo = tipo
-        self.init_ui()
+        self.transaction = transaction
+        self.setup_ui()
 
-    def init_ui(self):
-        # Layout principal horizontal
-        layout = QHBoxLayout()
+    def setup_ui(self):
+        layout = QVBoxLayout()
         layout.setContentsMargins(10, 10, 10, 10)
+        layout.setSpacing(4)
 
-        # Coluna descrição e tipo
-        text_layout = QVBoxLayout()
-        desc_label = QLabel(self.desc)
-        desc_label.setStyleSheet("font-weight: bold; font-size: 14px;")
-        tipo_label = QLabel(self.tipo)
-        tipo_label.setStyleSheet("color: gray; font-size: 12px;")
-        text_layout.addWidget(desc_label)
-        text_layout.addWidget(tipo_label)
+        # Descrição e Data
+        top_layout = QHBoxLayout()
+        desc_label = QLabel(self.transaction.get("desc", "Sem descrição"))
+        desc_label.setStyleSheet("font-weight: bold")
+        date_label = QLabel(self.transaction.get("data", "--/--/----"))
+        date_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        date_label.setStyleSheet("color: gray; font-size: 10px;")
+        top_layout.addWidget(desc_label)
+        top_layout.addStretch()
+        top_layout.addWidget(date_label)
 
-        layout.addLayout(text_layout)
+        # Valor
+        valor = self.transaction.get("valor", 0.0)
+        valor_label = QLabel(f"R$ {valor:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."))
+        tipo = self.transaction.get("tipo", "").lower()
+        if tipo == "receita":
+            valor_label.setStyleSheet("color: green; font-size: 14px;")
+        else:
+            valor_label.setStyleSheet("color: red; font-size: 14px;")
 
-        # Valor alinhado à direita
-        valor_label = QLabel(f"R$ {self.valor:.2f}")
-        valor_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-        valor_label.setStyleSheet(f"font-weight: bold; font-size: 14px; color: {self.get_color()};")
+        layout.addLayout(top_layout)
         layout.addWidget(valor_label)
 
+        line = QFrame()
+        line.setFrameShape(QFrame.Shape.HLine)
+        line.setFrameShadow(QFrame.Shadow.Sunken)
+        layout.addWidget(line)
+
         self.setLayout(layout)
-        self.setFixedHeight(60)
-
-        # Estilo de fundo (leve sombra e cor dependendo do tipo)
-        self.setAutoFillBackground(True)
-        palette = self.palette()
-        palette.setColor(QPalette.ColorRole.Window, QColor("#F0F0F0"))
-        self.setPalette(palette)
-        self.setStyleSheet("border-radius: 8px;")
-
-    def get_color(self):
-        # Cor verde para receita, vermelho para despesa
-        if self.tipo.lower() == "receita":
-            return "#2E8B57"  # verde escuro
-        else:
-            return "#B22222"  # vermelho escuro
+        self.setStyleSheet("background-color: #f0f0f0; border-radius: 10px;")

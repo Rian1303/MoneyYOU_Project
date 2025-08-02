@@ -1,8 +1,8 @@
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit,
-    QPushButton, QComboBox, QMessageBox
+    QPushButton, QComboBox, QMessageBox, QDateEdit
 )
-from PyQt6.QtCore import pyqtSignal
+from PyQt6.QtCore import pyqtSignal, QDate
 
 class TransactionForm(QWidget):
     transaction_added = pyqtSignal(dict)
@@ -10,7 +10,7 @@ class TransactionForm(QWidget):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Adicionar Transação")
-        self.setMinimumSize(300, 200)
+        self.setMinimumSize(300, 250)
         self.setup_ui()
 
     def setup_ui(self):
@@ -45,11 +45,22 @@ class TransactionForm(QWidget):
         type_layout.addWidget(self.type_combo)
         form_layout.addLayout(type_layout)
 
+        # Data
+        date_layout = QHBoxLayout()
+        date_label = QLabel("Data:")
+        date_label.setMinimumWidth(80)
+        self.date_input = QDateEdit()
+        self.date_input.setDate(QDate.currentDate())
+        self.date_input.setDisplayFormat("dd/MM/yyyy")
+        date_layout.addWidget(date_label)
+        date_layout.addWidget(self.date_input)
+        form_layout.addLayout(date_layout)
+
         main_layout.addLayout(form_layout)
 
         # Botões
         button_layout = QHBoxLayout()
-        button_layout.addStretch()  # empurra botão pra direita
+        button_layout.addStretch()
         add_btn = QPushButton("Adicionar")
         add_btn.clicked.connect(self.submit_transaction)
         button_layout.addWidget(add_btn)
@@ -61,6 +72,7 @@ class TransactionForm(QWidget):
         desc = self.desc_input.text().strip()
         valor_text = self.value_input.text().strip()
         tipo = self.type_combo.currentText()
+        data = self.date_input.date().toString("dd/MM/yyyy")
 
         if not desc:
             QMessageBox.warning(self, "Erro", "Descrição não pode ficar vazia.")
@@ -77,7 +89,8 @@ class TransactionForm(QWidget):
         transaction = {
             "desc": desc,
             "valor": valor,
-            "tipo": tipo
+            "tipo": tipo,
+            "data": data
         }
 
         self.transaction_added.emit(transaction)
