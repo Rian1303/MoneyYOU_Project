@@ -1,0 +1,11 @@
+{
+    "transactions": [
+        {
+            "id": "08cd19c808ec44e196660b1e9a998ac0",
+            "type": "Income",
+            "category": "Scholarship",
+            "amount": 1500.0,
+            "description": "Bolsista"
+        }
+    ]
+}
