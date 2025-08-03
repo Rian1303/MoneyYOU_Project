@@ -1,0 +1,6 @@
+# version.txt
+CompanyName=MoneyYOU
+FileDescription=Organizador financeiro pessoal
+FileVersion=0.5
+ProductVersion=0.5
+ProductName=MoneyYOU

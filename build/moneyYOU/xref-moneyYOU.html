@@ -6801,7 +6801,9 @@ imports:
   </div>
   <div class="import">
 imported by:
-    <a href="#main.py">main.py</a>
+    <a href="#database.data_manager">database.data_manager</a>
+ &#8226;   <a href="#logic.auth">logic.auth</a>
+ &#8226;   <a href="#main.py">main.py</a>
 
   </div>
 
@@ -7268,7 +7270,8 @@ imports:
   </div>
   <div class="import">
 imported by:
-    <a href="#importlib.metadata">importlib.metadata</a>
+    <a href="#database.data_manager">database.data_manager</a>
+ &#8226;   <a href="#importlib.metadata">importlib.metadata</a>
  &#8226;   <a href="#setuptools._vendor.importlib_metadata">setuptools._vendor.importlib_metadata</a>
  &#8226;   <a href="#setuptools._vendor.wheel.wheelfile">setuptools._vendor.wheel.wheelfile</a>
 
@@ -7543,6 +7546,36 @@ imported by:
 </div>
 
 <div class="node">
+  <a name="database"></a>
+  <a target="code" href="///C:/Users/user/Documents/Rian/MoneyYOU-Project/database/__init__.py" type="text/plain"><tt>database</tt></a>
+<span class="moduletype">Package</span>  <div class="import">
+imported by:
+    <a href="#database.data_manager">database.data_manager</a>
+
+  </div>
+
+</div>
+
+<div class="node">
+  <a name="database.data_manager"></a>
+  <a target="code" href="///C:/Users/user/Documents/Rian/MoneyYOU-Project/database/data_manager.py" type="text/plain"><tt>database.data_manager</tt></a>
+<span class="moduletype">SourceModule</span>  <div class="import">
+imports:
+    <a href="#config">config</a>
+ &#8226;   <a href="#csv">csv</a>
+ &#8226;   <a href="#database">database</a>
+ &#8226;   <a href="#json">json</a>
+
+  </div>
+  <div class="import">
+imported by:
+    <a href="#logic.transactions">logic.transactions</a>
+
+  </div>
+
+</div>
+
+<div class="node">
   <a name="dataclasses"></a>
   <a target="code" href="///C:/Users/user/AppData/Local/Programs/Python/Python313/Lib/dataclasses.py" type="text/plain"><tt>dataclasses</tt></a>
 <span class="moduletype">SourceModule</span>  <div class="import">
@@ -7608,6 +7641,7 @@ imported by:
  &#8226;   <a href="#email.utils">email.utils</a>
  &#8226;   <a href="#http.cookiejar">http.cookiejar</a>
  &#8226;   <a href="#http.server">http.server</a>
+ &#8226;   <a href="#logic.transactions">logic.transactions</a>
  &#8226;   <a href="#matplotlib.axis">matplotlib.axis</a>
  &#8226;   <a href="#matplotlib.backends.backend_webagg_core">matplotlib.backends.backend_webagg_core</a>
  &#8226;   <a href="#matplotlib.backends.qt_editor._formlayout">matplotlib.backends.qt_editor._formlayout</a>
@@ -7618,6 +7652,7 @@ imported by:
  &#8226;   <a href="#setuptools._vendor.tomli._re">setuptools._vendor.tomli._re</a>
  &#8226;   <a href="#setuptools.warnings">setuptools.warnings</a>
  &#8226;   <a href="#tomllib._re">tomllib._re</a>
+ &#8226;   <a href="#ui.dashboard">ui.dashboard</a>
  &#8226;   <a href="#xmlrpc.client">xmlrpc.client</a>
 
   </div>
@@ -13011,7 +13046,8 @@ imports:
   </div>
   <div class="import">
 imported by:
-    <a href="#dateutil.zoneinfo">dateutil.zoneinfo</a>
+    <a href="#database.data_manager">database.data_manager</a>
+ &#8226;   <a href="#dateutil.zoneinfo">dateutil.zoneinfo</a>
  &#8226;   <a href="#importlib.metadata">importlib.metadata</a>
  &#8226;   <a href="#json.decoder">json.decoder</a>
  &#8226;   <a href="#json.encoder">json.encoder</a>
@@ -13290,6 +13326,60 @@ imported by:
  &#8226;   <a href="#setuptools.config.pyprojecttoml">setuptools.config.pyprojecttoml</a>
  &#8226;   <a href="#setuptools.logging">setuptools.logging</a>
  &#8226;   <a href="#unittest._log">unittest._log</a>
+
+  </div>
+
+</div>
+
+<div class="node">
+  <a name="logic"></a>
+  <a target="code" href="///C:/Users/user/Documents/Rian/MoneyYOU-Project/logic/__init__.py" type="text/plain"><tt>logic</tt></a>
+<span class="moduletype">Package</span>  <div class="import">
+imports:
+    <a href="#logic.auth">logic.auth</a>
+ &#8226;   <a href="#logic.transactions">logic.transactions</a>
+
+  </div>
+  <div class="import">
+imported by:
+    <a href="#logic.auth">logic.auth</a>
+ &#8226;   <a href="#logic.transactions">logic.transactions</a>
+
+  </div>
+
+</div>
+
+<div class="node">
+  <a name="logic.auth"></a>
+  <a target="code" href="///C:/Users/user/Documents/Rian/MoneyYOU-Project/logic/auth.py" type="text/plain"><tt>logic.auth</tt></a>
+<span class="moduletype">SourceModule</span>  <div class="import">
+imports:
+    <a href="#config">config</a>
+ &#8226;   <a href="#logic">logic</a>
+
+  </div>
+  <div class="import">
+imported by:
+    <a href="#logic">logic</a>
+
+  </div>
+
+</div>
+
+<div class="node">
+  <a name="logic.transactions"></a>
+  <a target="code" href="///C:/Users/user/Documents/Rian/MoneyYOU-Project/logic/transactions.py" type="text/plain"><tt>logic.transactions</tt></a>
+<span class="moduletype">SourceModule</span>  <div class="import">
+imports:
+    <a href="#database.data_manager">database.data_manager</a>
+ &#8226;   <a href="#datetime">datetime</a>
+ &#8226;   <a href="#logic">logic</a>
+
+  </div>
+  <div class="import">
+imported by:
+    <a href="#logic">logic</a>
+ &#8226;   <a href="#ui.dashboard">ui.dashboard</a>
 
   </div>
 
@@ -33258,6 +33348,8 @@ imported by:
 imports:
     <a href="#PyQt6.QtCore">PyQt6.QtCore</a>
  &#8226;   <a href="#PyQt6.QtWidgets">PyQt6.QtWidgets</a>
+ &#8226;   <a href="#datetime">datetime</a>
+ &#8226;   <a href="#logic.transactions">logic.transactions</a>
  &#8226;   <a href="#matplotlib.backends.backend_qtagg">matplotlib.backends.backend_qtagg</a>
  &#8226;   <a href="#matplotlib.figure">matplotlib.figure</a>
  &#8226;   <a href="#ui">ui</a>
