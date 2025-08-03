@@ -7,7 +7,7 @@ Contém a lógica do aplicativo:
 - Geração de relatórios
 """
 
-from .auth import check_credentials
+from .auth import validate_login, validate_registration, register_user
 from .transactions import (
     add_transaction,
     edit_transaction,

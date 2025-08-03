@@ -69,42 +69,31 @@ def delete_transaction(id):
         return True
     return False
 
-
-def filter_transactions(transactions, tipo=None, data_inicio=None, data_fim=None):
-    """
-    Filters transactions based on provided criteria.
-
-    Args:
-        transactions (list): A list of transaction dictionaries.
-        tipo (str, optional): The type of transaction to filter by.
-        data_inicio (str, optional): Start date (format "dd/mm/yyyy").
-        data_fim (str, optional): End date (format "dd/mm/yyyy").
-
-    Returns:
-        list: A list of filtered transactions.
-    """
+def filter_transactions(transactions, tipo=None, categoria=None, data_inicio=None, data_fim=None):
     filtered = transactions
     date_format = "%d/%m/%Y"
 
     if tipo:
-        filtered = [t for t in filtered if t.get('tipo') == tipo]
+        filtered = [t for t in filtered if t.get('type', '').lower() == tipo.lower()]
+
+    if categoria:
+        filtered = [t for t in filtered if t.get('category', '').lower() == categoria.lower()]
 
     if data_inicio:
         try:
             dt_inicio = datetime.strptime(data_inicio, date_format)
-            filtered = [t for t in filtered if datetime.strptime(t.get('data', '01/01/1900'), date_format) >= dt_inicio]
+            filtered = [t for t in filtered if datetime.strptime(t.get('date', '01/01/1900'), date_format) >= dt_inicio]
         except Exception:
             pass
 
     if data_fim:
         try:
             dt_fim = datetime.strptime(data_fim, date_format)
-            filtered = [t for t in filtered if datetime.strptime(t.get('data', '01/01/1900'), date_format) <= dt_fim]
-        except Exception:
-            pass
+            filtered = [t for t in filtered if datetime.strptime(t.get('date', '01/01/1900'), date_format) <= dt_fim]
+        except Exception as e:
+            print(f"Erro ao converter data_fim: {e}")
 
     return filtered
-
 
 def calcular_saldo(transactions):
     """

@@ -10,8 +10,16 @@ class TransactionForm(QWidget):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Adicionar Transação")
-        self.setMinimumSize(300, 250)
+        self.setMinimumSize(350, 300)
+
+        # Categorias por tipo
+        self.categories = {
+            "Entrada": ["Salário", "Bolsa", "Outras Entradas"],
+            "Saída": ["Alimentação", "Transporte", "Moradia", "Lazer", "Outras Saídas"]
+        }
+
         self.setup_ui()
+        self.update_category_options()
 
     def setup_ui(self):
         main_layout = QVBoxLayout()
@@ -40,10 +48,20 @@ class TransactionForm(QWidget):
         type_label = QLabel("Tipo:")
         type_label.setMinimumWidth(80)
         self.type_combo = QComboBox()
-        self.type_combo.addItems(["Receita", "Despesa"])
+        self.type_combo.addItems(["Entrada", "Saída"])
+        self.type_combo.currentIndexChanged.connect(self.update_category_options)
         type_layout.addWidget(type_label)
         type_layout.addWidget(self.type_combo)
         form_layout.addLayout(type_layout)
+
+        # Categoria
+        category_layout = QHBoxLayout()
+        category_label = QLabel("Categoria:")
+        category_label.setMinimumWidth(80)
+        self.category_combo = QComboBox()
+        category_layout.addWidget(category_label)
+        category_layout.addWidget(self.category_combo)
+        form_layout.addLayout(category_layout)
 
         # Data
         date_layout = QHBoxLayout()
@@ -68,10 +86,16 @@ class TransactionForm(QWidget):
 
         self.setLayout(main_layout)
 
+    def update_category_options(self):
+        selected_type = self.type_combo.currentText()
+        self.category_combo.clear()
+        self.category_combo.addItems(self.categories.get(selected_type, []))
+
     def submit_transaction(self):
         desc = self.desc_input.text().strip()
         valor_text = self.value_input.text().strip()
         tipo = self.type_combo.currentText()
+        categoria = self.category_combo.currentText()
         data = self.date_input.date().toString("dd/MM/yyyy")
 
         if not desc:
@@ -87,10 +111,11 @@ class TransactionForm(QWidget):
             return
 
         transaction = {
-            "desc": desc,
-            "valor": valor,
-            "tipo": tipo,
-            "data": data
+            "type": tipo,
+            "category": categoria,
+            "amount": valor,
+            "description": desc,
+            "date": data
         }
 
         self.transaction_added.emit(transaction)

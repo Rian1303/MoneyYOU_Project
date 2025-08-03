@@ -1,20 +1,82 @@
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QTableWidget,
-    QTableWidgetItem, QHeaderView, QMessageBox, QGroupBox
+    QTableWidgetItem, QHeaderView, QMessageBox, QGroupBox, QDialog,
+    QLineEdit, QComboBox
 )
 from PyQt6.QtCore import Qt
 from ui.transaction_form import TransactionForm
+from datetime import datetime
 
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
+
+# Importe sua função de filtro (ajuste o caminho conforme seu projeto)
+from logic.transactions import filter_transactions
+
+
+class FilterDialog(QDialog):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Filtrar Transações")
+        self.setModal(True)
+        self.setMinimumWidth(300)
+
+        layout = QVBoxLayout()
+
+        # Tipo
+        tipo_layout = QHBoxLayout()
+        tipo_label = QLabel("Tipo:")
+        self.tipo_combo = QComboBox()
+        self.tipo_combo.addItem("")  # vazio = sem filtro
+        self.tipo_combo.addItems(["receita", "despesa"])
+        tipo_layout.addWidget(tipo_label)
+        tipo_layout.addWidget(self.tipo_combo)
+        layout.addLayout(tipo_layout)
+
+        # Data início
+        data_inicio_layout = QHBoxLayout()
+        data_inicio_label = QLabel("Data Início (dd/mm/aaaa):")
+        self.data_inicio_edit = QLineEdit()
+        data_inicio_layout.addWidget(data_inicio_label)
+        data_inicio_layout.addWidget(self.data_inicio_edit)
+        layout.addLayout(data_inicio_layout)
+
+        # Data fim
+        data_fim_layout = QHBoxLayout()
+        data_fim_label = QLabel("Data Fim (dd/mm/aaaa):")
+        self.data_fim_edit = QLineEdit()
+        data_fim_layout.addWidget(data_fim_label)
+        data_fim_layout.addWidget(self.data_fim_edit)
+        layout.addLayout(data_fim_layout)
+
+        # Botões
+        btn_layout = QHBoxLayout()
+        self.ok_btn = QPushButton("Aplicar")
+        self.cancel_btn = QPushButton("Cancelar")
+        btn_layout.addWidget(self.ok_btn)
+        btn_layout.addWidget(self.cancel_btn)
+        layout.addLayout(btn_layout)
+
+        self.setLayout(layout)
+
+        self.ok_btn.clicked.connect(self.accept)
+        self.cancel_btn.clicked.connect(self.reject)
+
+    def get_filters(self):
+        return {
+            "tipo": self.tipo_combo.currentText().strip() or None,
+            "data_inicio": self.data_inicio_edit.text().strip() or None,
+            "data_fim": self.data_fim_edit.text().strip() or None,
+        }
+
 
 class DashboardWindow(QWidget):
     def __init__(self, username):
         super().__init__()
         self.setWindowTitle(f"Dashboard - Organizador Financeiro - {username}")
-        self.setMinimumSize(800, 600)  # tamanho mínimo adequado para o layout
+        self.setMinimumSize(900, 650)  # Evitar cortes
 
-        self.transactions = []  # lista de transações inicial vazia
+        self.transactions = []  # lista inicial vazia
 
         self.init_ui()
 
@@ -26,14 +88,14 @@ class DashboardWindow(QWidget):
         main_layout = QHBoxLayout()
         main_layout.setSpacing(15)
 
-        # Grupo do gráfico (lado esquerdo)
+        # Gráfico (lado esquerdo)
         self.chart_group = QGroupBox("Resumo Financeiro")
         chart_layout = QVBoxLayout()
-        self.chart_canvas = FigureCanvas(Figure(figsize=(5, 4)))
+        self.chart_canvas = FigureCanvas(Figure(figsize=(6, 5)))
         chart_layout.addWidget(self.chart_canvas)
         self.chart_group.setLayout(chart_layout)
 
-        # Grupo das transações e botões (lado direito)
+        # Transações e botões (lado direito)
         self.transactions_group = QGroupBox("Transações")
         right_layout = QVBoxLayout()
         right_layout.setSpacing(10)
@@ -47,22 +109,25 @@ class DashboardWindow(QWidget):
         self.add_transaction_btn.clicked.connect(self.open_transaction_form)
         right_layout.addWidget(self.add_transaction_btn)
 
+        self.filter_btn = QPushButton("Filtrar")
+        self.filter_btn.clicked.connect(self.open_filter_dialog)
+        right_layout.addWidget(self.filter_btn)
+
         self.table = QTableWidget()
         self.table.setColumnCount(4)
         self.table.setHorizontalHeaderLabels(["Data", "Descrição", "Valor", "Tipo"])
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
-        self.table.verticalHeader().setVisible(False)  # esconder numeração das linhas
+        self.table.verticalHeader().setVisible(False)
         self.table.setAlternatingRowColors(True)
         right_layout.addWidget(self.table)
 
         self.transactions_group.setLayout(right_layout)
 
-        main_layout.addWidget(self.chart_group, 3)   # 3/8 da largura total
-        main_layout.addWidget(self.transactions_group, 5)  # 5/8 da largura total
+        main_layout.addWidget(self.chart_group, 3)
+        main_layout.addWidget(self.transactions_group, 5)
 
         main_vertical_layout.addLayout(main_layout)
 
-        # Rodapé com direitos reservados
         footer_label = QLabel("Direitos Reservados à Croma Company - Departamento de Softwares")
         footer_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         footer_label.setObjectName("footerLabel")
@@ -71,7 +136,6 @@ class DashboardWindow(QWidget):
 
         self.setLayout(main_vertical_layout)
 
-        # Atualiza o dashboard ao iniciar
         self.update_dashboard()
 
     def update_dashboard(self):
@@ -79,30 +143,33 @@ class DashboardWindow(QWidget):
         self.update_balance()
         self.update_chart()
 
-    def load_transactions(self):
-        self.table.setRowCount(len(self.transactions))
-        for row, tx in enumerate(self.transactions):
+    def load_transactions(self, transactions=None):
+        transactions = transactions or self.transactions
+        self.table.setRowCount(len(transactions))
+        for row, tx in enumerate(transactions):
             data_text = tx.get("data", "")
             self.table.setItem(row, 0, QTableWidgetItem(data_text))
             self.table.setItem(row, 1, QTableWidgetItem(tx["desc"]))
             self.table.setItem(row, 2, QTableWidgetItem(f"R$ {tx['valor']:.2f}"))
             self.table.setItem(row, 3, QTableWidgetItem(tx["tipo"]))
 
-    def update_balance(self):
+    def update_balance(self, transactions=None):
+        transactions = transactions or self.transactions
         saldo = 0
-        for tx in self.transactions:
+        for tx in transactions:
             if tx["tipo"].lower() == "receita":
                 saldo += tx["valor"]
             else:
                 saldo -= tx["valor"]
         self.balance_label.setText(f"Saldo: R$ {saldo:.2f}")
 
-    def update_chart(self):
+    def update_chart(self, transactions=None):
+        transactions = transactions or self.transactions
         self.chart_canvas.figure.clear()
         ax = self.chart_canvas.figure.add_subplot(111)
 
-        receita = sum(tx["valor"] for tx in self.transactions if tx["tipo"].lower() == "receita")
-        despesa = sum(tx["valor"] for tx in self.transactions if tx["tipo"].lower() == "despesa")
+        receita = sum(tx["valor"] for tx in transactions if tx["tipo"].lower() == "receita")
+        despesa = sum(tx["valor"] for tx in transactions if tx["tipo"].lower() == "despesa")
 
         categories = ['Receitas', 'Despesas']
         values = [receita, despesa]
@@ -112,7 +179,7 @@ class DashboardWindow(QWidget):
         ax.set_title("Resumo de Receitas vs Despesas")
         ax.set_ylabel("Valor (R$)")
         ax.grid(axis='y', linestyle='--', alpha=0.7)
-
+        ax.margins(y=0.1)
         self.chart_canvas.draw()
 
     def open_transaction_form(self):
@@ -120,8 +187,22 @@ class DashboardWindow(QWidget):
         self.form.transaction_added.connect(self.handle_new_transaction)
         self.form.show()
 
+    def open_filter_dialog(self):
+        dialog = FilterDialog(self)
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            filtros = dialog.get_filters()
+            filtradas = filter_transactions(
+                self.transactions,
+                tipo=filtros["tipo"],
+                data_inicio=filtros["data_inicio"],
+                data_fim=filtros["data_fim"]
+            )
+            self.load_transactions(filtradas)
+            self.update_balance(filtradas)
+            self.update_chart(filtradas)
+
     def handle_new_transaction(self, transaction):
         self.transactions.append(transaction)
         self.update_dashboard()
         QMessageBox.information(self, "Sucesso", "Transação adicionada com sucesso!")
- 
+        
