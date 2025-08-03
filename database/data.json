@@ -5,7 +5,7 @@
       "type": "Entrada",
       "category": "Salário",
       "amount": 3500.0,
-      "description": "Salário de agosto",
+      "desc": "Salário de agosto",
       "date": "01/08/2025"
     },
     {
@@ -13,7 +13,7 @@
       "type": "Entrada",
       "category": "Bolsa",
       "amount": 1500.0,
-      "description": "Bolsa do governo",
+      "desc": "Bolsa do governo",
       "date": "05/08/2025"
     },
     {
@@ -21,7 +21,7 @@
       "type": "Entrada",
       "category": "Outras Entradas",
       "amount": 500.0,
-      "description": "Venda de bicicleta usada",
+      "desc": "Venda de bicicleta usada",
       "date": "07/08/2025"
     },
     {
@@ -29,7 +29,7 @@
       "type": "Entrada",
       "category": "Presentes",
       "amount": 200.0,
-      "description": "Presente de aniversário",
+      "desc": "Presente de aniversário",
       "date": "10/08/2025"
     },
     {
@@ -37,7 +37,7 @@
       "type": "Entrada",
       "category": "Investimentos Recebidos",
       "amount": 100.0,
-      "description": "Lucro fundo imobiliário",
+      "desc": "Lucro fundo imobiliário",
       "date": "12/08/2025"
     },
     {
@@ -45,7 +45,7 @@
       "type": "Saída",
       "category": "Alimentação Mensal",
       "amount": 800.0,
-      "description": "Compras do mês",
+      "desc": "Compras do mês",
       "date": "02/08/2025"
     },
     {
@@ -53,7 +53,7 @@
       "type": "Saída",
       "category": "Moradia",
       "amount": 1200.0,
-      "description": "Aluguel",
+      "desc": "Aluguel",
       "date": "03/08/2025"
     },
     {
@@ -61,7 +61,7 @@
       "type": "Saída",
       "category": "Transporte",
       "amount": 150.0,
-      "description": "Bilhete de ônibus",
+      "desc": "Bilhete de ônibus",
       "date": "04/08/2025"
     },
     {
@@ -69,7 +69,7 @@
       "type": "Saída",
       "category": "Lazer",
       "amount": 180.0,
-      "description": "Cinema e lanche",
+      "desc": "Cinema e lanche",
       "date": "06/08/2025"
     },
     {
@@ -77,7 +77,7 @@
       "type": "Saída",
       "category": "Outras Saídas",
       "amount": 75.0,
-      "description": "Presente para amigo",
+      "desc": "Presente para amigo",
       "date": "08/08/2025"
     },
     {
@@ -85,7 +85,7 @@
       "type": "Saída",
       "category": "Investimentos Pagos",
       "amount": 300.0,
-      "description": "Aporte mensal em ações",
+      "desc": "Aporte mensal em ações",
       "date": "09/08/2025"
     }
   ]

@@ -28,7 +28,7 @@ class FilterDialog(QDialog):
         tipo_label = QLabel("Tipo:")
         self.tipo_combo = QComboBox()
         self.tipo_combo.addItem("")  # vazio = sem filtro
-        self.tipo_combo.addItems(["receita", "despesa"])
+        self.tipo_combo.addItems(["entrada", "saída", "receita", "despesa"])  # possíveis tipos usados
         tipo_layout.addWidget(tipo_label)
         tipo_layout.addWidget(self.tipo_combo)
         layout.addLayout(tipo_layout)
@@ -147,20 +147,22 @@ class DashboardWindow(QWidget):
         transactions = transactions or self.transactions
         self.table.setRowCount(len(transactions))
         for row, tx in enumerate(transactions):
-            data_text = tx.get("data", "")
+            data_text = tx.get("date", "")
             self.table.setItem(row, 0, QTableWidgetItem(data_text))
-            self.table.setItem(row, 1, QTableWidgetItem(tx["desc"]))
-            self.table.setItem(row, 2, QTableWidgetItem(f"R$ {tx['valor']:.2f}"))
-            self.table.setItem(row, 3, QTableWidgetItem(tx["tipo"]))
+            self.table.setItem(row, 1, QTableWidgetItem(tx.get("desc", "")))
+            self.table.setItem(row, 2, QTableWidgetItem(f"R$ {tx.get('amount', 0):.2f}"))
+            self.table.setItem(row, 3, QTableWidgetItem(tx.get("type", "")))
 
     def update_balance(self, transactions=None):
         transactions = transactions or self.transactions
         saldo = 0
         for tx in transactions:
-            if tx["tipo"].lower() == "receita":
-                saldo += tx["valor"]
-            else:
-                saldo -= tx["valor"]
+            tipo = tx.get("type", "").lower()
+            valor = tx.get("amount", 0)
+            if tipo in ("entrada", "receita"):
+                saldo += valor
+            elif tipo in ("saída", "despesa"):
+                saldo -= valor
         self.balance_label.setText(f"Saldo: R$ {saldo:.2f}")
 
     def update_chart(self, transactions=None):
@@ -168,8 +170,8 @@ class DashboardWindow(QWidget):
         self.chart_canvas.figure.clear()
         ax = self.chart_canvas.figure.add_subplot(111)
 
-        receita = sum(tx["valor"] for tx in transactions if tx["tipo"].lower() == "receita")
-        despesa = sum(tx["valor"] for tx in transactions if tx["tipo"].lower() == "despesa")
+        receita = sum(tx.get("amount", 0) for tx in transactions if tx.get("type", "").lower() in ("entrada", "receita"))
+        despesa = sum(tx.get("amount", 0) for tx in transactions if tx.get("type", "").lower() in ("saída", "despesa"))
 
         categories = ['Receitas', 'Despesas']
         values = [receita, despesa]
@@ -205,4 +207,3 @@ class DashboardWindow(QWidget):
         self.transactions.append(transaction)
         self.update_dashboard()
         QMessageBox.information(self, "Sucesso", "Transação adicionada com sucesso!")
-        

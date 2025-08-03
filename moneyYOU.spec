@@ -5,7 +5,11 @@ a = Analysis(
     ['main.py'],
     pathex=[],
     binaries=[],
-    datas=[('assets', 'assets'), ('database', 'database'), ('logic', 'logic'), ('ui', 'ui')],
+    datas=[
+        ('assets/style.qss', 'assets'),
+        ('assets/icons/app_icon.ico', 'assets/icons'),
+        ('assets/icons/app_icon.png', 'assets/icons'),
+    ],
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},
@@ -14,6 +18,7 @@ a = Analysis(
     noarchive=False,
     optimize=0,
 )
+
 pyz = PYZ(a.pure)
 
 exe = EXE(
@@ -29,11 +34,10 @@ exe = EXE(
     upx=True,
     upx_exclude=[],
     runtime_tmpdir=None,
-    console=False,
+    console=True,  # True para mostrar erros no terminal, False para ocultar
     disable_windowed_traceback=False,
     argv_emulation=False,
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon=['assets\\icons\\app_icon.ico'],
 )
