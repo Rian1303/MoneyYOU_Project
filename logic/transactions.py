@@ -1,75 +1,57 @@
 from datetime import datetime
-from database.data_manager import add_transaction as db_add_transaction, \
-                                  load_data, save_data
-# Se quiser, importe outras funções do data_manager conforme necessário
+from database.data_manager import (
+    add_transaction as db_add_transaction,
+    load_transactions,
+    edit_transaction as db_edit_transaction,
+    delete_transaction as db_delete_transaction
+)
 
+from logic.firebase import send_transaction_to_firebase  # 🔹 NOVO
 
-def add_transaction(data):
+def add_transaction(data: dict) -> dict:
     """
-    Adds a new transaction to the database.
-
-    Args:
-        data (dict): A dictionary containing transaction details.
-
-    Returns:
-        dict: A response indicating success or failure.
+    Adiciona uma nova transação na base local e no Firebase.
     """
     try:
-        # Garante que a data esteja no formato correto ou insere a data atual
-        if 'data' not in data or not data['data']:
-            data['data'] = datetime.now().strftime('%d/%m/%Y')
+        if 'date' not in data or not data['date']:
+            data['date'] = datetime.now().strftime('%d/%m/%Y')
         else:
             try:
-                # Valida o formato informado
-                datetime.strptime(data['data'], '%d/%m/%Y')
+                datetime.strptime(data['date'], '%d/%m/%Y')
             except ValueError:
                 return {"status": "error", "message": "Data inválida. Use o formato dd/mm/yyyy."}
 
+        # Salva localmente (SQLite)
         db_add_transaction(data)
-        return {"status": "success", "message": "Transaction added successfully."}
+
+        # Tenta enviar ao Firebase
+        try:
+            send_transaction_to_firebase(data)
+        except Exception as e:
+            print(f"[Aviso] Firebase falhou, mas transação local foi salva: {e}")
+
+        return {"status": "success", "message": "Transação adicionada com sucesso."}
     except Exception as e:
         return {"status": "error", "message": str(e)}
 
-
-def edit_transaction(id, new_data):
+def edit_transaction(id: int, new_data: dict) -> bool:
     """
-    Edit a transaction by id.
-
-    Args:
-        id (str): The unique identifier of the transaction.
-        new_data (dict): The new data to update.
-
-    Returns:
-        bool: True if edited, False if not found.
+    Edita transação pelo id.
+    Retorna True se editou, False se não encontrou.
     """
-    data = load_data()
-    for transaction in data.get('transactions', []):
-        if transaction.get('id') == id:
-            transaction.update(new_data)
-            save_data(data)
-            return True
-    return False
+    return db_edit_transaction(id, new_data)
 
-
-def delete_transaction(id):
+def delete_transaction(id: int) -> bool:
     """
-    Delete a transaction by id.
-
-    Args:
-        id (str): The unique identifier of the transaction.
-
-    Returns:
-        bool: True if deleted, False if not found.
+    Deleta transação pelo id.
+    Retorna True se deletou, False se não encontrou.
     """
-    data = load_data()
-    original_len = len(data.get('transactions', []))
-    data['transactions'] = [t for t in data.get('transactions', []) if t.get('id') != id]
-    if len(data['transactions']) < original_len:
-        save_data(data)
-        return True
-    return False
+    return db_delete_transaction(id)
 
-def filter_transactions(transactions, tipo=None, categoria=None, data_inicio=None, data_fim=None):
+def filter_transactions(transactions: list, tipo=None, categoria=None, data_inicio=None, data_fim=None) -> list:
+    """
+    Filtra transações por tipo, categoria e intervalo de datas (strings dd/mm/yyyy).
+    """
     filtered = transactions
     date_format = "%d/%m/%Y"
 
@@ -90,29 +72,23 @@ def filter_transactions(transactions, tipo=None, categoria=None, data_inicio=Non
         try:
             dt_fim = datetime.strptime(data_fim, date_format)
             filtered = [t for t in filtered if datetime.strptime(t.get('date', '01/01/1900'), date_format) <= dt_fim]
-        except Exception as e:
-            print(f"Erro ao converter data_fim: {e}")
+        except Exception:
+            pass
 
     return filtered
 
-def calcular_saldo(transactions):
+def calcular_saldo(transactions: list) -> float:
     """
-    Calculates the total balance based on transaction types.
-
-    Args:
-        transactions (list): A list of transaction dictionaries.
-
-    Returns:
-        float: The total balance.
+    Calcula saldo total com base no tipo das transações ('entrada' soma, 'saida' subtrai).
     """
     saldo = 0.0
-    for transaction in transactions:
+    for t in transactions:
         try:
-            valor = float(transaction.get('valor', 0))
+            valor = float(t.get('amount', 0))
         except (ValueError, TypeError):
             valor = 0.0
 
-        tipo = transaction.get('tipo', '').lower()
+        tipo = t.get('type', '').lower()
         if tipo == 'entrada':
             saldo += valor
         elif tipo == 'saida':

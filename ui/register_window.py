@@ -1,5 +1,6 @@
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel, QLineEdit, QPushButton, QMessageBox
 from PyQt6.QtCore import pyqtSignal
+from logic.auth import register_user as auth_register_user  # Função para registrar no banco
 
 class RegisterWindow(QWidget):
     user_registered = pyqtSignal(str, str)
@@ -46,4 +47,12 @@ class RegisterWindow(QWidget):
             QMessageBox.warning(self, "Erro", "Senha deve ter no mínimo 4 caracteres.")
             return
 
+        try:
+            auth_register_user(username, password)
+        except ValueError as e:
+            QMessageBox.warning(self, "Erro", str(e))
+            return
+
+        QMessageBox.information(self, "Sucesso", "Usuário registrado com sucesso!")
         self.user_registered.emit(username, password)
+        self.close()

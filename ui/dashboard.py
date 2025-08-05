@@ -12,6 +12,9 @@ from matplotlib.figure import Figure
 
 # Importe sua função de filtro (ajuste o caminho conforme seu projeto)
 from logic.transactions import filter_transactions
+from logic.transactions import load_transactions, add_transaction
+
+from logic.firebase import sync_transactions_to_firebase
 
 
 class FilterDialog(QDialog):
@@ -76,7 +79,9 @@ class DashboardWindow(QWidget):
         self.setWindowTitle(f"Dashboard - Organizador Financeiro - {username}")
         self.setMinimumSize(900, 650)  # Evitar cortes
 
-        self.transactions = []  # lista inicial vazia
+        self.username = username
+        self.transactions = load_transactions(user_id=self.username)  # Ajuste se precisar converter username em id
+        
 
         self.init_ui()
 
@@ -138,10 +143,16 @@ class DashboardWindow(QWidget):
 
         self.update_dashboard()
 
+        self.sync_btn = QPushButton("🔄 Sincronizar com Firebase")
+        self.sync_btn.clicked.connect(self.sync_with_firebase)
+        right_layout.addWidget(self.sync_btn)
+
     def update_dashboard(self):
-        self.load_transactions()
-        self.update_balance()
-        self.update_chart()
+        from logic.transactions import load_transactions
+        self.transactions = load_transactions(user_id=self.username)
+        self.load_transactions(self.transactions)
+        self.update_balance(self.transactions)
+        self.update_chart(self.transactions)
 
     def load_transactions(self, transactions=None):
         transactions = transactions or self.transactions
@@ -204,6 +215,24 @@ class DashboardWindow(QWidget):
             self.update_chart(filtradas)
 
     def handle_new_transaction(self, transaction):
-        self.transactions.append(transaction)
-        self.update_dashboard()
-        QMessageBox.information(self, "Sucesso", "Transação adicionada com sucesso!")
+        from logic.transactions import add_transaction
+
+        # Inclua o username/id na transação
+        transaction['user_id'] = self.username
+
+        response = add_transaction(transaction)
+        if response.get("status") == "success":
+            self.update_dashboard()
+            QMessageBox.information(self, "Sucesso", "Transação adicionada com sucesso!")
+        else:
+            QMessageBox.warning(self, "Erro", response.get("message", "Erro ao salvar transação."))
+
+    def sync_with_firebase(self):
+        try:
+            result = sync_transactions_to_firebase(user_id=self.username)
+            if result["status"] == "success":
+                QMessageBox.information(self, "Sucesso", "Transações sincronizadas com o Firebase.")
+            else:
+                QMessageBox.warning(self, "Erro", f"Erro ao sincronizar: {result['message']}")
+        except Exception as e:
+            QMessageBox.critical(self, "Erro", f"Erro inesperado: {str(e)}")

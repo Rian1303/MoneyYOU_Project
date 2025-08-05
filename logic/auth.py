@@ -1,15 +1,67 @@
-from config import USERS, MIN_PASSWORD_LENGTH
+import sqlite3
+from pathlib import Path
+
+from pathlib import Path
+import sys
+import os
+
+def resource_path(relative_path):
+    try:
+        base_path = sys._MEIPASS  # Quando empacotado pelo PyInstaller
+    except Exception:
+        base_path = os.path.abspath(".")
+
+    return os.path.join(base_path, relative_path)
+
+DB_PATH = resource_path("database/db.sqlite")
+MIN_PASSWORD_LENGTH = 4  # Ajuste conforme seu config
+
+def connect():
+    return sqlite3.connect(DB_PATH)
+
+def create_master_user():
+    conn = connect()
+    cursor = conn.cursor()
+
+    # Tente criar tabela users se não existir
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT UNIQUE NOT NULL,
+            password TEXT NOT NULL
+        )
+    """)
+
+    # Verifica se o usuário master já existe
+    cursor.execute("SELECT 1 FROM users WHERE username = ?", ("master",))
+    if cursor.fetchone() is None:
+        # Se não existir, cria o usuário master com senha padrão
+        cursor.execute("INSERT INTO users (username, password) VALUES (?, ?)", ("master", "master123"))
+        print("Usuário master criado: username='master', senha='master123'")
+    else:
+        print("Usuário master já existe.")
+
+    conn.commit()
+    conn.close()
 
 def validate_login(username: str, password: str) -> bool:
-    """
-    Verifica se o usuário existe e a senha está correta.
-    """
-    return USERS.get(username) == password
+    conn = connect()
+    cursor = conn.cursor()
+    cursor.execute("SELECT password FROM users WHERE username = ?", (username,))
+    result = cursor.fetchone()
+    conn.close()
+
+    if result is None:
+        return False  # Usuário não encontrado
+    stored_password = result[0]
+
+    # Atenção: comparar strings exatas
+    return stored_password == password
 
 def validate_registration(username: str, password: str, confirm_password: str) -> (bool, str):
     """
-    Valida os dados do cadastro.
-    Retorna (True, mensagem) se válido, (False, mensagem) se inválido.
+    Valida dados do cadastro: campos preenchidos, senha mínima, senhas iguais e usuário não existente.
+    Retorna tupla (bool, mensagem).
     """
     if not username or not password or not confirm_password:
         return False, "Preencha todos os campos."
@@ -20,16 +72,24 @@ def validate_registration(username: str, password: str, confirm_password: str) -
     if password != confirm_password:
         return False, "As senhas não conferem."
 
-    if username in USERS:
+    conn = connect()
+    cursor = conn.cursor()
+    cursor.execute("SELECT 1 FROM users WHERE username = ?", (username,))
+    exists = cursor.fetchone()
+    conn.close()
+
+    if exists:
         return False, "Usuário já existe."
 
     return True, "Cadastro válido."
 
 def register_user(username: str, password: str) -> None:
-    """
-    Registra um novo usuário no sistema (em memória).
-    """
-    if username not in USERS:
-        USERS[username] = password
-    else:
+    conn = connect()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("INSERT INTO users (username, password) VALUES (?, ?)", (username, password))
+        conn.commit()
+    except sqlite3.IntegrityError:
+        conn.close()
         raise ValueError("Usuário já existe.")
+    conn.close()

@@ -6,6 +6,8 @@ from ui.login_screen import LoginScreen
 from ui.dashboard import DashboardWindow
 from ui.register_window import RegisterWindow
 import config
+from logic.auth import create_master_user
+
 
 ICONS_DIR = Path(__file__).parent / "assets" / "icons"
 
@@ -13,17 +15,13 @@ class AppController:
     def __init__(self):
         self.app = QApplication(sys.argv)
 
-        # Lista dinâmica de usuários (inicia do config)
-        self.users = config.USERS.copy()
-
-        # Aplicar estilo, definir ícone etc. (como antes)
         self.apply_stylesheet()
         icon_path = ICONS_DIR / "app_icon.png"
         if icon_path.exists():
             self.app.setWindowIcon(QIcon(str(icon_path)))
 
-        # Criar telas
-        self.login_window = LoginScreen(self.users)
+        # Criar janelas
+        self.login_window = LoginScreen()
         self.login_window.login_success.connect(self.show_dashboard)
         self.login_window.open_register.connect(self.show_register)
 
@@ -54,11 +52,9 @@ class AppController:
             self.register_window.raise_()
             self.register_window.activateWindow()
 
-    def handle_new_user(self, username, password):
-        # Adiciona novo usuário na lista em memória
-        self.users[username] = password
-        # Atualiza login_window com novo dicionário
-        self.login_window.update_users(self.users)
+    def handle_new_user(self, username, _):
+        # Apenas fecha janela após cadastro com sucesso
+        self.login_window.show()
         self.register_window.close()
         self.register_window = None
 

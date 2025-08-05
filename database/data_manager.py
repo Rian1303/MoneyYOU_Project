@@ -1,70 +1,91 @@
-import json
-from config import JSON_DB_PATH  # Usa o caminho do config.py
-import csv
+import sqlite3
+from pathlib import Path
 
-def load_data():
-    """
-    Load data from the database JSON file.
-    Returns a dict. If file doesn't exist or is inválid, returns empty dict.
-    """
-    try:
-        with open(JSON_DB_PATH, 'r', encoding='utf-8') as file:
-            return json.load(file)
-    except FileNotFoundError:
-        print(f"Arquivo {JSON_DB_PATH} não encontrado. Retornando dados vazios.")
-        return {}
-    except json.JSONDecodeError:
-        print(f"Erro ao decodificar JSON em {JSON_DB_PATH}. Retornando dados vazios.")
-        return {}
+DB_PATH = Path(__file__).parent / "db.sqlite"
 
-def save_data(data):
-    """
-    Save data to the database JSON file.
-    """
-    try:
-        with open(JSON_DB_PATH, 'w', encoding='utf-8') as file:
-            json.dump(data, file, indent=4, ensure_ascii=False)
-    except IOError as e:
-        print(f"Erro ao salvar dados: {e}")
+def connect():
+    return sqlite3.connect(DB_PATH)
 
 def add_transaction(transaction):
     """
-    Add a transaction dict to the transactions list and save.
+    transaction: dict com keys: user_id, type, amount, category, date, desc
     """
-    data = load_data()
-    data.setdefault('transactions', []).append(transaction)
-    save_data(data)
+    conn = connect()
+    cursor = conn.cursor()
+    cursor.execute("""
+        INSERT INTO transactions (user_id, type, amount, category, date, desc)
+        VALUES (?, ?, ?, ?, ?, ?)
+    """, (
+        transaction.get('user_id'),
+        transaction.get('type'),
+        transaction.get('amount'),
+        transaction.get('category'),
+        transaction.get('date'),
+        transaction.get('desc')
+    ))
+    conn.commit()
+    conn.close()
 
 def edit_transaction(id, new_data):
     """
-    Update transaction with given id using new_data dict.
+    Atualiza uma transação pelo id com os campos em new_data (dict).
     """
-    data = load_data()
-    for transaction in data.get('transactions', []):
-        if transaction.get('id') == id:
-            transaction.update(new_data)
-            save_data(data)
-            return True  # sucesso
-    return False  # não encontrado
+    conn = connect()
+    cursor = conn.cursor()
+
+    # Montar query dinâmica para UPDATE
+    fields = ", ".join([f"{k} = ?" for k in new_data.keys()])
+    values = list(new_data.values())
+    values.append(id)  # id no WHERE
+
+    query = f"UPDATE transactions SET {fields} WHERE id = ?"
+    cursor.execute(query, values)
+    conn.commit()
+    updated = cursor.rowcount
+    conn.close()
+
+    return updated > 0
 
 def delete_transaction(id):
-    """
-    Remove transaction with given id.
-    """
-    data = load_data()
-    original_len = len(data.get('transactions', []))
-    data['transactions'] = [t for t in data.get('transactions', []) if t.get('id') != id]
-    if len(data['transactions']) < original_len:
-        save_data(data)
-        return True
-    return False
+    conn = connect()
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM transactions WHERE id = ?", (id,))
+    conn.commit()
+    deleted = cursor.rowcount
+    conn.close()
+    return deleted > 0
 
-def export_csv(path):
+def load_transactions(user_id=None):
     """
-    Export all transactions to a CSV file at given path.
+    Retorna lista de dicts com as transações.
+    Se user_id for passado, filtra só desse usuário.
     """
-    data = load_data()
-    transactions = data.get('transactions', [])
+    conn = connect()
+    cursor = conn.cursor()
+
+    if user_id:
+        cursor.execute("""
+            SELECT id, user_id, type, amount, category, date, desc 
+            FROM transactions 
+            WHERE user_id = ? 
+            ORDER BY date DESC
+        """, (user_id,))
+    else:
+        cursor.execute("""
+            SELECT id, user_id, type, amount, category, date, desc 
+            FROM transactions 
+            ORDER BY date DESC
+        """)
+
+    rows = cursor.fetchall()
+    conn.close()
+
+    keys = ['id', 'user_id', 'type', 'amount', 'category', 'date', 'desc']
+    return [dict(zip(keys, row)) for row in rows]
+
+def export_csv(path, user_id=None):
+    import csv
+    transactions = load_transactions(user_id)
 
     if not transactions:
         print("Nenhuma transação para exportar.")

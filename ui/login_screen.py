@@ -1,13 +1,13 @@
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel, QLineEdit, QPushButton, QMessageBox
 from PyQt6.QtCore import pyqtSignal
+from logic.auth import validate_login
 
 class LoginScreen(QWidget):
     login_success = pyqtSignal(str)
     open_register = pyqtSignal()
 
-    def __init__(self, users):
+    def __init__(self):
         super().__init__()
-        self.users = users
         self.setWindowTitle("Login")
         self.setup_ui()
 
@@ -36,10 +36,7 @@ class LoginScreen(QWidget):
         user = self.user_input.text()
         password = self.pass_input.text()
 
-        if self.users.get(user) == password:
+        if validate_login(user, password):
             self.login_success.emit(user)
         else:
             QMessageBox.warning(self, "Erro", "Usuário ou senha inválidos.")
-
-    def update_users(self, users):
-        self.users = users
