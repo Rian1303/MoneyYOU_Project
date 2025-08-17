@@ -1,22 +1,24 @@
 import sys
 from pathlib import Path
 
-# ==========================
-# Diretório base do projeto
-# ==========================
-if getattr(sys, 'frozen', False):
-    # Quando executado como exe pelo cx_Freeze
-    BASE_DIR = Path(sys.executable).parent
-else:
-    # Quando executado como script Python normal
-    BASE_DIR = Path(__file__).resolve().parent
 
-# ==========================
-# Diretórios importantes
-# ==========================
+# Detecta se está rodando como exe ou script
+if getattr(sys, "frozen", False):
+    BASE_DIR = Path(sys.executable).parent  # pasta do exe
+else:
+    BASE_DIR = Path(__file__).resolve().parent  # pasta do script
+
+# Diretórios e arquivos
 DATABASE_DIR = BASE_DIR / "database"
 ASSETS_DIR = BASE_DIR / "assets"
 ICONS_DIR = ASSETS_DIR / "icons"
+CONFIG_DIR = BASE_DIR / "config"
+
+STYLE_PATH = ASSETS_DIR / "style.qss"
+JSON_DB_PATH = DATABASE_DIR / "data.json"
+FIREBASE_KEY_PATH = CONFIG_DIR / "firebase_key.json"
+APP_ICON = ICONS_DIR / "app_icon.png"
+
 
 # ==========================
 # Arquivos principais
