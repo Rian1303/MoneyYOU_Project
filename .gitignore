@@ -1,1 +1,15 @@
-firebase_key.json
+# Ignorar configs sensíveis
+config/
+
+# Ignorar arquivos de ambiente
+.env
+*.env
+
+# Pastas de build/teste
+__pycache__/
+*.pyc
+dist/
+build/
+
+# Logs
+*.log
