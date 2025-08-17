@@ -14,7 +14,10 @@ class LoginScreen(QWidget):
     def setup_ui(self):
         layout = QVBoxLayout()
         self.user_input = QLineEdit()
+        self.user_input.setPlaceholderText("Usuário")
+
         self.pass_input = QLineEdit()
+        self.pass_input.setPlaceholderText("Senha")
         self.pass_input.setEchoMode(QLineEdit.EchoMode.Password)
 
         login_btn = QPushButton("Login")
@@ -33,10 +36,17 @@ class LoginScreen(QWidget):
         self.setLayout(layout)
 
     def check_login(self):
-        user = self.user_input.text()
-        password = self.pass_input.text()
+        user = self.user_input.text().strip()
+        password = self.pass_input.text().strip()
 
-        if validate_login(user, password):
-            self.login_success.emit(user)
-        else:
-            QMessageBox.warning(self, "Erro", "Usuário ou senha inválidos.")
+        if not user or not password:
+            QMessageBox.warning(self, "Erro", "Preencha todos os campos.")
+            return
+
+        try:
+            if validate_login(user, password):
+                self.login_success.emit(user)
+            else:
+                QMessageBox.warning(self, "Erro", "Usuário ou senha inválidos.")
+        except Exception as e:
+            QMessageBox.critical(self, "Erro", f"Falha ao verificar login:\n{str(e)}")

@@ -1,18 +1,36 @@
 # -*- mode: python ; coding: utf-8 -*-
+import os
+from PyInstaller.utils.hooks import collect_data_files
 
+# =========================
+# Incluir arquivos extras
+# =========================
+datas = []
 
+# Inclui toda a pasta 'assets' com estrutura preservada
+for root, dirs, files in os.walk('assets'):
+    for file in files:
+        src_path = os.path.join(root, file)
+        dest_path = os.path.relpath(root, '.')  # mantém estrutura
+        datas.append((src_path, dest_path))
+
+# Inclui a chave do Firebase
+datas.append(('config/firebase_key.json', 'config'))
+
+# =========================
+# Configuração PyInstaller
+# =========================
 a = Analysis(
     ['main.py'],
     pathex=[],
     binaries=[],
-   datas=[
-    ('assets/style.qss', 'assets'),
-    ('assets/icons/app_icon.ico', 'assets/icons'),
-    ('assets/icons/app_icon.png', 'assets/icons'),
-    ('config/firebase_key.json', 'config'),
-    ('database/db.sqlite', 'database'),  # <<< ESSA LINHA
+    datas=datas,
+    hiddenimports=[
+        'firebase_admin',
+        'google.auth',
+        'google.auth.transport.requests',
+        'requests'
     ],
-    hiddenimports=[],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
@@ -20,26 +38,33 @@ a = Analysis(
     noarchive=False,
     optimize=0,
 )
+
 pyz = PYZ(a.pure)
 
+# =========================
+# EXE Final
+# =========================
 exe = EXE(
     pyz,
     a.scripts,
     [],
-    exclude_binaries=True,
+    exclude_binaries=False,   # importante para onefile
     name='MoneyYOU',
     debug=False,
-    bootloader_ignore_signals=False,
     strip=False,
     upx=True,
-    console=True,
+    console=True,  # coloque False se quiser app sem terminal
     disable_windowed_traceback=False,
     argv_emulation=False,
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon=['assets\\icons\\app_icon.ico'],
+    icon=['assets/icons/app_icon.ico'],  # ajuste seu ícone
 )
+
+# =========================
+# Coletando tudo (onedir)
+# =========================
 coll = COLLECT(
     exe,
     a.binaries,

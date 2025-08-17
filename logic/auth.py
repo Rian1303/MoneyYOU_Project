@@ -1,29 +1,41 @@
-import sqlite3
-from pathlib import Path
-
-from pathlib import Path
 import sys
 import os
+import sqlite3
+from logic.firebase import db  # Cliente Firestore
+
+# Detecta se está rodando empacotado (PyInstaller)
+IS_FROZEN = getattr(sys, 'frozen', False)
 
 def resource_path(relative_path):
     try:
-        base_path = sys._MEIPASS  # Quando empacotado pelo PyInstaller
+        base_path = sys._MEIPASS  # PyInstaller
     except Exception:
         base_path = os.path.abspath(".")
-
     return os.path.join(base_path, relative_path)
 
 DB_PATH = resource_path("database/db.sqlite")
-MIN_PASSWORD_LENGTH = 4  # Ajuste conforme seu config
+MIN_PASSWORD_LENGTH = 4  # Configurável
 
+
+# -------------------------------
+# Função de conexão SQLite (apenas no desenvolvimento)
+# -------------------------------
 def connect():
+    if IS_FROZEN:
+        raise RuntimeError("SQLite desativado no modo produção (usando apenas Firebase)")
     return sqlite3.connect(DB_PATH)
 
+
+# -------------------------------
+# Criar usuário master (apenas dev)
+# -------------------------------
 def create_master_user():
+    if IS_FROZEN:
+        print("[Aviso] create_master_user ignorado no modo produção.")
+        return
+
     conn = connect()
     cursor = conn.cursor()
-
-    # Tente criar tabela users se não existir
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -31,38 +43,40 @@ def create_master_user():
             password TEXT NOT NULL
         )
     """)
-
-    # Verifica se o usuário master já existe
     cursor.execute("SELECT 1 FROM users WHERE username = ?", ("master",))
     if cursor.fetchone() is None:
-        # Se não existir, cria o usuário master com senha padrão
         cursor.execute("INSERT INTO users (username, password) VALUES (?, ?)", ("master", "master123"))
         print("Usuário master criado: username='master', senha='master123'")
     else:
         print("Usuário master já existe.")
-
     conn.commit()
     conn.close()
 
+
+# -------------------------------
+# Validação de login
+# -------------------------------
 def validate_login(username: str, password: str) -> bool:
+    if IS_FROZEN:
+        # Produção → consulta no Firebase
+        doc = db.collection("users").document(username).get()
+        if doc.exists:
+            return doc.to_dict().get("password") == password
+        return False
+
+    # Desenvolvimento → consulta no SQLite
     conn = connect()
     cursor = conn.cursor()
     cursor.execute("SELECT password FROM users WHERE username = ?", (username,))
     result = cursor.fetchone()
     conn.close()
+    return result is not None and result[0] == password
 
-    if result is None:
-        return False  # Usuário não encontrado
-    stored_password = result[0]
 
-    # Atenção: comparar strings exatas
-    return stored_password == password
-
+# -------------------------------
+# Validação de cadastro
+# -------------------------------
 def validate_registration(username: str, password: str, confirm_password: str) -> (bool, str):
-    """
-    Valida dados do cadastro: campos preenchidos, senha mínima, senhas iguais e usuário não existente.
-    Retorna tupla (bool, mensagem).
-    """
     if not username or not password or not confirm_password:
         return False, "Preencha todos os campos."
 
@@ -72,24 +86,73 @@ def validate_registration(username: str, password: str, confirm_password: str) -
     if password != confirm_password:
         return False, "As senhas não conferem."
 
+    if IS_FROZEN:
+        # Produção → verificar no Firebase
+        if db.collection("users").document(username).get().exists:
+            return False, "Usuário já existe."
+        return True, "Cadastro válido."
+
+    # Desenvolvimento → verificar no SQLite
     conn = connect()
     cursor = conn.cursor()
     cursor.execute("SELECT 1 FROM users WHERE username = ?", (username,))
     exists = cursor.fetchone()
     conn.close()
-
     if exists:
         return False, "Usuário já existe."
-
     return True, "Cadastro válido."
 
+
+# -------------------------------
+# Registro de usuário
+# -------------------------------
 def register_user(username: str, password: str) -> None:
+    if IS_FROZEN:
+        # Produção → apenas Firebase
+        db.collection("users").document(username).set({
+            "username": username,
+            "password": password  # ⚠ Idealmente usar hash
+        })
+        print(f"[Firebase] Usuário '{username}' adicionado com sucesso.")
+        return
+
+    # Desenvolvimento → SQLite + Firebase
     conn = connect()
     cursor = conn.cursor()
     try:
         cursor.execute("INSERT INTO users (username, password) VALUES (?, ?)", (username, password))
         conn.commit()
+        db.collection("users").document(username).set({
+            "username": username,
+            "password": password
+        })
+        print(f"[Firebase] Usuário '{username}' adicionado com sucesso.")
     except sqlite3.IntegrityError:
-        conn.close()
         raise ValueError("Usuário já existe.")
+    finally:
+        conn.close()
+
+
+# -------------------------------
+# Sincronização de usuários (dev)
+# -------------------------------
+def sync_users_to_firebase():
+    if IS_FROZEN:
+        print("[Aviso] sync_users_to_firebase ignorado no modo produção.")
+        return
+
+    conn = connect()
+    cursor = conn.cursor()
+    cursor.execute("SELECT username, password FROM users")
+    all_users = cursor.fetchall()
     conn.close()
+
+    count = 0
+    for username, password in all_users:
+        db.collection("users").document(username).set({
+            "username": username,
+            "password": password
+        })
+        count += 1
+        print(f"[Firebase] Usuário '{username}' sincronizado.")
+    print(f"[Firebase] Total de {count} usuários sincronizados.")

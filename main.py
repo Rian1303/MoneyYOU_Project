@@ -1,4 +1,5 @@
 import sys
+import os
 from pathlib import Path
 from PyQt6.QtGui import QIcon
 from PyQt6.QtWidgets import QApplication
@@ -8,6 +9,20 @@ from ui.register_window import RegisterWindow
 import config
 from logic.auth import create_master_user
 
+
+def resource_path(relative_path):
+    """
+    Retorna o caminho correto para arquivos externos,
+    funciona no Python normal e no .exe onefile/onedir
+    """
+    if getattr(sys, 'frozen', False):
+        # Se rodando do exe, base é a pasta onde o exe está
+        base_path = os.path.dirname(sys.executable)
+    else:
+        # Python normal
+        base_path = os.path.abspath(".")
+
+    return os.path.join(base_path, relative_path)
 
 ICONS_DIR = Path(__file__).parent / "assets" / "icons"
 

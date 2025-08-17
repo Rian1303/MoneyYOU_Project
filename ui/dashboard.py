@@ -1,3 +1,5 @@
+import sys
+import os   
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QTableWidget,
     QTableWidgetItem, QHeaderView, QMessageBox, QGroupBox, QDialog,
