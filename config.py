@@ -1,23 +1,33 @@
 import sys
 from pathlib import Path
 
-# Definição única e correta do diretório base do projeto
+# ==========================
+# Diretório base do projeto
+# ==========================
 if getattr(sys, 'frozen', False):
-    BASE_DIR = Path(sys._MEIPASS)
+    # Quando executado como exe pelo cx_Freeze
+    BASE_DIR = Path(sys.executable).parent
 else:
+    # Quando executado como script Python normal
     BASE_DIR = Path(__file__).resolve().parent
 
+# ==========================
 # Diretórios importantes
+# ==========================
 DATABASE_DIR = BASE_DIR / "database"
 ASSETS_DIR = BASE_DIR / "assets"
 ICONS_DIR = ASSETS_DIR / "icons"
 
+# ==========================
 # Arquivos principais
+# ==========================
 STYLE_PATH = ASSETS_DIR / "style.qss"
 JSON_DB_PATH = DATABASE_DIR / "data.json"
 APP_ICON = ICONS_DIR / "app_icon.png"
 
-# ===== Informações do App =====
+# ==========================
+# Informações do App
+# ==========================
 APP_INFO = {
     "name": "Financial Organizer",
     "version": "1.0.0",
@@ -25,21 +35,29 @@ APP_INFO = {
     "description": "Organize suas finanças de forma simples e offline"
 }
 
-# ===== Configuração de Login de Teste =====
+# ==========================
+# Configuração de Login de Teste
+# ==========================
 TEST_USER = {
     "username": "admin",
     "password": "1234"
 }
 
-# ===== Usuários para teste =====
+# ==========================
+# Usuários para teste
+# ==========================
 USERS = {
     "admin": "1234"
 }
 
-# ===== Regras de senha =====
+# ==========================
+# Regras de senha
+# ==========================
 MIN_PASSWORD_LENGTH = 4
 
-# ===== Cores Globais (HEX) =====
+# ==========================
+# Cores Globais (HEX)
+# ==========================
 COLORS = {
     "background": "#F9FAFB",
     "primary": "#7C3AED",
@@ -49,13 +67,17 @@ COLORS = {
     "success": "#10B981"
 }
 
-# ===== Categorias Padrão de Transações =====
+# ==========================
+# Categorias Padrão de Transações
+# ==========================
 DEFAULT_CATEGORIES = {
     "Income": ["Scholarship", "Salary", "Gift", "Other"],
     "Expense": ["Rent", "Food", "Transport", "Bills", "Entertainment", "Other"]
 }
 
-# ===== Conversão de Moedas (valores fixos) =====
+# ==========================
+# Conversão de Moedas (valores fixos)
+# ==========================
 CURRENCY_CONVERSION = {
     "BRL_to_USD": 0.19,
     "BRL_to_EUR": 0.17,

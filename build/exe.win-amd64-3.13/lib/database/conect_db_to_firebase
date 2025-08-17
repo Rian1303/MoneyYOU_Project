@@ -1,0 +1,52 @@
+import sqlite3
+import os
+from datetime import datetime, timezone
+
+import firebase_admin
+from firebase_admin import credentials, firestore
+
+# Configurações de caminho - ajuste conforme seu projeto
+base_dir = os.path.dirname(os.path.abspath(__file__))
+project_root = os.path.abspath(os.path.join(base_dir, ".."))
+sqlite_path = os.path.join(project_root, "database", "db.sqlite")
+firebase_config_path = os.path.join(project_root, "config", "firebase_key.json")
+
+# Inicializar Firebase
+cred = credentials.Certificate(firebase_config_path)
+firebase_admin.initialize_app(cred)
+db_firestore = firestore.client()
+
+# Conectar SQLite
+conn = sqlite3.connect(sqlite_path)
+cursor = conn.cursor()
+
+# Buscar usuários no SQLite
+cursor.execute("SELECT id, username, password, email, created_at, last_login FROM users")
+usuarios = cursor.fetchall()
+
+print(f"Usuários encontrados no SQLite: {len(usuarios)}")
+
+for user in usuarios:
+    user_id, username, password_hash, email, created_at, last_login = user
+    print(f"\nProcessando usuário ID {user_id}...")
+
+
+    data = {
+        "username": username,
+        "email": email,
+        "password_hash": password_hash,
+        "created_at": created_at if created_at else datetime.now(timezone.utc).isoformat(),
+        "last_login": last_login
+    }
+
+    doc_ref = db_firestore.collection("Users").document(str(user_id))
+    try:
+        doc_ref.set(data, merge=False)
+        print(f"Usuário {user_id} sincronizado com sucesso.")
+    except Exception as e:
+        print(f"Erro ao sincronizar usuário {user_id}: {e}")
+
+
+print("\nSincronização concluída.")
+
+conn.close()

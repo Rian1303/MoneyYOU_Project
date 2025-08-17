@@ -1,28 +1,39 @@
 # -*- mode: python ; coding: utf-8 -*-
 import os
 from PyInstaller.utils.hooks import collect_data_files
+from PyInstaller.building.build_main import Analysis, PYZ, EXE, COLLECT
+
+# =========================
+# Base do projeto
+# =========================
+BASE_DIR = os.getcwd()
 
 # =========================
 # Incluir arquivos extras
 # =========================
 datas = []
 
-# Inclui toda a pasta 'assets' com estrutura preservada
-for root, dirs, files in os.walk('assets'):
+# Firebase key
+firebase_key_path = os.path.join(BASE_DIR, 'config', 'firebase_key.json')
+datas.append((firebase_key_path, 'config'))
+
+# Banco local
+data_json_path = os.path.join(BASE_DIR, 'database', 'data.json')
+datas.append((data_json_path, 'database'))
+
+# Assets
+for root, dirs, files in os.walk(os.path.join(BASE_DIR, 'assets')):
     for file in files:
         src_path = os.path.join(root, file)
-        dest_path = os.path.relpath(root, '.')  # mantém estrutura
+        dest_path = os.path.relpath(root, BASE_DIR)
         datas.append((src_path, dest_path))
-
-# Inclui a chave do Firebase
-datas.append(('config/firebase_key.json', 'config'))
 
 # =========================
 # Configuração PyInstaller
 # =========================
 a = Analysis(
     ['main.py'],
-    pathex=[],
+    pathex=[BASE_DIR],
     binaries=[],
     datas=datas,
     hiddenimports=[
@@ -42,24 +53,20 @@ a = Analysis(
 pyz = PYZ(a.pure)
 
 # =========================
-# EXE Final
+# EXE Final (onedir)
 # =========================
 exe = EXE(
     pyz,
     a.scripts,
     [],
-    exclude_binaries=False,   # importante para onefile
+    exclude_binaries=False,
     name='MoneyYOU',
     debug=False,
     strip=False,
     upx=True,
-    console=True,  # coloque False se quiser app sem terminal
+    console=True,  # colocar False se não quiser console
     disable_windowed_traceback=False,
-    argv_emulation=False,
-    target_arch=None,
-    codesign_identity=None,
-    entitlements_file=None,
-    icon=['assets/icons/app_icon.ico'],  # ajuste seu ícone
+    icon=os.path.join(BASE_DIR, 'assets', 'icons', 'app_icon.ico')
 )
 
 # =========================
@@ -74,3 +81,15 @@ coll = COLLECT(
     upx_exclude=[],
     name='MoneyYOU',
 )
+
+hiddenimports=[
+    'firebase_admin',
+    'firebase_admin.credentials',
+    'firebase_admin.firestore',
+    'google.auth',
+    'google.auth.transport.requests',
+    'google.auth.compute_engine',
+    'google.auth.jwt',
+    'google.oauth2.service_account',
+    'requests',
+]

@@ -2,6 +2,8 @@ import sqlite3
 from pathlib import Path
 import sys
 import os
+import firebase_admin
+from firebase_admin import credentials, firestore
 
 
 def resource_path(relative_path):
