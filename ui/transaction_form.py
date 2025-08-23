@@ -1,13 +1,20 @@
 from PyQt6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton, QComboBox, QMessageBox
+    QWidget, QVBoxLayout, QLabel, QLineEdit, QPushButton,
+    QComboBox, QMessageBox, QDateEdit
 )
-from PyQt6.QtCore import pyqtSignal
+from PyQt6.QtCore import pyqtSignal, QDate
+from datetime import datetime
+import uuid
+
+# Ajuste a importação para a função genérica que salva tanto no Firebase quanto no SQLite
+from logic.transactions import add_transaction
 
 class TransactionForm(QWidget):
     transaction_added = pyqtSignal(dict)
 
-    def __init__(self):
+    def __init__(self, user_id):
         super().__init__()
+        self.user_id = user_id
         self.setWindowTitle("Adicionar Transação")
         self.setMinimumWidth(300)
         self.setup_ui()
@@ -27,7 +34,7 @@ class TransactionForm(QWidget):
         self.type_combo.currentTextChanged.connect(self.update_categories)
         layout.addWidget(self.type_combo)
 
-        # Categoria (depende do tipo)
+        # Categoria
         layout.addWidget(QLabel("Categoria:"))
         self.category_combo = QComboBox()
         layout.addWidget(self.category_combo)
@@ -37,6 +44,19 @@ class TransactionForm(QWidget):
         self.amount_input = QLineEdit()
         self.amount_input.setPlaceholderText("Ex: 100.00")
         layout.addWidget(self.amount_input)
+
+        # Data
+        layout.addWidget(QLabel("Data:"))
+        self.date_edit = QDateEdit()
+        self.date_edit.setCalendarPopup(True)
+        self.date_edit.setDate(QDate.currentDate())
+        layout.addWidget(self.date_edit)
+
+        # Recorrência
+        layout.addWidget(QLabel("Recorrência:"))
+        self.recurrence_combo = QComboBox()
+        self.recurrence_combo.addItems(["Única", "Diária", "Semanal", "Mensal", "Anual"])
+        layout.addWidget(self.recurrence_combo)
 
         # Botão adicionar
         add_btn = QPushButton("Adicionar")
@@ -61,6 +81,8 @@ class TransactionForm(QWidget):
         tipo = self.type_combo.currentText()
         categoria = self.category_combo.currentText()
         amount_text = self.amount_input.text().strip()
+        data = self.date_edit.date().toPyDate()
+        recurrence = self.recurrence_combo.currentText()
 
         # Validações básicas
         if not desc:
@@ -74,13 +96,24 @@ class TransactionForm(QWidget):
             QMessageBox.warning(self, "Erro", "Valor inválido. Informe um número positivo.")
             return
 
+        # Cria ID único para evitar duplicação
+        transaction_id = str(uuid.uuid4())
+
         transaction = {
+            "id": transaction_id,
+            "user_id": self.user_id,
             "desc": desc,
             "type": tipo,
             "category": categoria,
             "amount": amount,
-            # Data você pode pegar aqui, se quiser (ex: datetime.now())
+            "date": data.strftime("%d/%m/%Y"),
+            "recurrence": recurrence
         }
 
-        self.transaction_added.emit(transaction)
-        self.close()
+        # Adiciona a transação via função genérica
+        result = add_transaction(transaction)
+        if result.get("status") == "success":
+            self.transaction_added.emit(transaction)
+            self.close()
+        else:
+            QMessageBox.warning(self, "Erro", result.get("message", "Erro ao salvar transação."))

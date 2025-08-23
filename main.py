@@ -8,6 +8,13 @@ from ui.dashboard import DashboardWindow
 from ui.register_window import RegisterWindow
 import config
 from logic.auth import create_master_user
+from logic.theme_manager import load_theme
+
+# Inicializa app
+app = QApplication(sys.argv)
+
+# Carrega o último tema usado
+load_theme()
 
 class AppController:
     def __init__(self):

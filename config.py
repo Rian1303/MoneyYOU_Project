@@ -18,7 +18,14 @@ STYLE_PATH = ASSETS_DIR / "style.qss"
 JSON_DB_PATH = DATABASE_DIR / "data.json"
 FIREBASE_KEY_PATH = CONFIG_DIR / "firebase_key.json"
 APP_ICON = ICONS_DIR / "app_icon.png"
+# ==========================
+# Temas (Dark / Light)
+# ==========================
+LIGHT_THEME = ASSETS_DIR / "light.qss"
+DARK_THEME = ASSETS_DIR / "dark.qss"
 
+# Tema padrão (inicial)
+APP_THEME = LIGHT_THEME
 
 # ==========================
 # Arquivos principais

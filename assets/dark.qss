@@ -1,0 +1,27 @@
+/* Fundo geral */
+QWidget {
+    background-color: #1E1E1E;
+    color: #F9FAFB;
+    font-family: "Segoe UI";
+    font-size: 14px;
+}
+
+/* Botões */
+QPushButton {
+    background-color: #A855F7;
+    color: #FFFFFF;
+    border-radius: 8px;
+    padding: 6px 12px;
+}
+QPushButton:hover {
+    background-color: #7C3AED;
+}
+
+/* Campos de entrada */
+QLineEdit, QPlainTextEdit {
+    background-color: #2D2D2D;
+    border: 1px solid #444444;
+    border-radius: 6px;
+    padding: 4px;
+    color: #F9FAFB;
+}
