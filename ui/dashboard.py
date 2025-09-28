@@ -1,239 +1,406 @@
+# ui/dashboard.py  (PyQt6)
+
 from PyQt6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QTableWidget,
-    QTableWidgetItem, QHeaderView, QGroupBox, QLineEdit, QComboBox
+    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
+    QTableWidget, QTableWidgetItem, QHeaderView, QGroupBox,
+    QLineEdit, QComboBox, QDateEdit, QDialog, QDialogButtonBox,
+    QTextEdit
 )
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, QDate, QTimer
+from ui.widgets.chart_widget import ChartWidget
+
 from ui.transaction_form import TransactionForm
-from logic.transactions import filter_transactions, load_transactions
-from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
-from matplotlib.figure import Figure
+from ui.settings_screen import SettingsScreen
+from ui.transactions_screen import TransactionsScreen
+from database.data_manager import load_transactions, filter_transactions
+from logic.theme_manager import set_theme, load_theme_qss
+from logic.usr_config import UserConfigManager
+from logic.finance_logic import FinanceLogic
 
-# ------------------ FilterDialog inline ------------------
-class FilterDialog(QGroupBox):
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.setTitle("Filtrar Transações")
-        layout = QVBoxLayout()
-        # Tipo
-        tipo_layout = QHBoxLayout()
-        tipo_label = QLabel("Tipo:")
-        self.tipo_combo = QComboBox()
-        self.tipo_combo.addItem("")
-        self.tipo_combo.addItems(["entrada", "saída", "receita", "despesa"])
-        tipo_layout.addWidget(tipo_label)
-        tipo_layout.addWidget(self.tipo_combo)
-        layout.addLayout(tipo_layout)
-        # Data início
-        data_inicio_layout = QHBoxLayout()
-        data_inicio_label = QLabel("Data Início (dd/mm/aaaa):")
-        self.data_inicio_edit = QLineEdit()
-        data_inicio_layout.addWidget(data_inicio_label)
-        data_inicio_layout.addWidget(self.data_inicio_edit)
-        layout.addLayout(data_inicio_layout)
-        # Data fim
-        data_fim_layout = QHBoxLayout()
-        data_fim_label = QLabel("Data Fim (dd/mm/aaaa):")
-        self.data_fim_edit = QLineEdit()
-        data_fim_layout.addWidget(data_fim_label)
-        data_fim_layout.addWidget(self.data_fim_edit)
-        layout.addLayout(data_fim_layout)
-        # Botões
-        btn_layout = QHBoxLayout()
-        self.ok_btn = QPushButton("Aplicar")
-        self.cancel_btn = QPushButton("Cancelar")
-        btn_layout.addWidget(self.ok_btn)
-        btn_layout.addWidget(self.cancel_btn)
-        layout.addLayout(btn_layout)
-        self.setLayout(layout)
-        self.ok_btn.clicked.connect(self.accept)
-        self.cancel_btn.clicked.connect(self.reject)
+try:
+    from logic.ai_assistant import AIAssistant
+except Exception:
+    AIAssistant = None
 
-    def accept(self):
-        self.parent().apply_filters(self.get_filters())
-        self.hide()
 
-    def reject(self):
-        self.hide()
-
-    def get_filters(self):
-        return {
-            "tipo": self.tipo_combo.currentText().strip() or None,
-            "data_inicio": self.data_inicio_edit.text().strip() or None,
-            "data_fim": self.data_fim_edit.text().strip() or None,
-        }
-
-# ------------------ DashboardWindow ------------------
 class DashboardWindow(QWidget):
-    def __init__(self, username):
+    def __init__(self, username: str):
         super().__init__()
         self.username = username
-        self.transactions = load_transactions(user_id=username)
-        self.transaction_form = None
-        self.filter_dialog = None
+        self.transactions = []
+        self.user_config = {}
+
+        self.finance = FinanceLogic()
+
+        # Widgets fixos
+        self.settings_widget = SettingsScreen(self.username)
+        self.settings_widget.theme_changed.connect(self.apply_theme)
+        self.settings_widget.config_changed.connect(self.on_config_changed)
+
+        self.transactions_screen = TransactionsScreen(self.username)
+
+        # Assistente opcional
+        self.assistant = None
+        self.assistant_error = None
+        if AIAssistant:
+            try:
+                self.assistant = AIAssistant()
+            except Exception as e:
+                self.assistant_error = str(e)
+
+        # Carregar configs do Firebase
+        try:
+            cfg = UserConfigManager.get_user_config(self.username)
+        except Exception:
+            cfg = {}
+        self.apply_user_config(cfg)
+
+        try:
+            self.config_listener = UserConfigManager.listen_user_config(self.username, self.apply_user_config)
+        except Exception:
+            self.config_listener = None
+
         self.init_ui()
+        self.update_dashboard()
 
+    # ---------------- UI ----------------
     def init_ui(self):
-        self.setWindowTitle(f"Dashboard - {self.username}")
-        self.setMinimumSize(900, 650)
-        self.main_layout = QVBoxLayout()
-        self.setLayout(self.main_layout)
+        self.setWindowTitle("Dashboard")
+        self.setMinimumSize(1100, 720)
 
-        # ------------------ Barra superior ------------------
+        self.main_layout = QVBoxLayout(self)
+
+        # Topbar
         self.topbar_layout = QHBoxLayout()
         self.dashboard_btn = QPushButton("Dashboard")
         self.transactions_btn = QPushButton("Transações")
         self.settings_btn = QPushButton("Configurações")
+        self.logout_btn = QPushButton("Logout")
+
+        for btn in [self.dashboard_btn, self.transactions_btn, self.settings_btn, self.logout_btn]:
+            btn.setFixedHeight(36)
 
         self.topbar_layout.addWidget(self.dashboard_btn)
         self.topbar_layout.addWidget(self.transactions_btn)
         self.topbar_layout.addWidget(self.settings_btn)
         self.topbar_layout.addStretch()
 
-        # Ícone do usuário
+        # Avatar simples
         self.user_icon = QLabel()
-        self.user_icon.setFixedSize(30, 30)
-        self.user_icon.setStyleSheet("border-radius: 15px; background-color: #7C3AED;")
+        self.user_icon.setFixedSize(40, 40)
+        self.user_icon.setStyleSheet("border-radius:20px; background-color:#7C3AED;")
         self.topbar_layout.addWidget(self.user_icon)
+        self.topbar_layout.addWidget(self.logout_btn)
 
         self.main_layout.addLayout(self.topbar_layout)
 
-        # ------------------ Conexões da Barra Superior ------------------
-        self.dashboard_btn.clicked.connect(self.show_dashboard_content)
-        self.transactions_btn.clicked.connect(self.open_transactions)  # <-- aqui
-        self.settings_btn.clicked.connect(self.show_settings_content)
-
-
-        # ------------------ Área principal ------------------
+        # Conteúdo principal
         self.content_layout = QHBoxLayout()
         self.main_layout.addLayout(self.content_layout)
 
-        # Gráfico
+        # --- Grupo Gráfico ---
         self.chart_group = QGroupBox("Resumo Financeiro")
         chart_layout = QVBoxLayout()
-        self.chart_canvas = FigureCanvas(Figure(figsize=(6,5)))
+        self.chart_canvas = ChartWidget([])
         chart_layout.addWidget(self.chart_canvas)
         self.chart_group.setLayout(chart_layout)
 
-        # Transações
+        # --- Grupo Transações + Controles ---
         self.transactions_group = QGroupBox("Transações")
         right_layout = QVBoxLayout()
+
         self.balance_label = QLabel("Saldo: R$ 0,00")
         self.balance_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.balance_label.setStyleSheet("font-size:14pt; font-weight:bold; margin: 6px 0;")
         right_layout.addWidget(self.balance_label)
-        self.add_transaction_btn = QPushButton("Adicionar Transação")
-        right_layout.addWidget(self.add_transaction_btn)
+
+        controls = QHBoxLayout()
+        self.add_transaction_btn = QPushButton("Adicionar")
         self.filter_btn = QPushButton("Filtrar")
-        right_layout.addWidget(self.filter_btn)
+        self.refresh_btn = QPushButton("Atualizar")
+        controls.addWidget(self.add_transaction_btn)
+        controls.addWidget(self.filter_btn)
+        controls.addWidget(self.refresh_btn)
+        right_layout.addLayout(controls)
+
         self.table = QTableWidget()
-        self.table.setColumnCount(4)
-        self.table.setHorizontalHeaderLabels(["Data", "Descrição", "Valor", "Tipo"])
+        self.table.setColumnCount(5)
+        self.table.setHorizontalHeaderLabels(["Data", "Descrição", "Categoria", "Valor", "Tipo"])
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         self.table.verticalHeader().setVisible(False)
         self.table.setAlternatingRowColors(True)
         right_layout.addWidget(self.table)
+
+        # --- Grupo Assistente ---
+        self.assistant_group = QGroupBox("Assistente Financeiro (beta)")
+        ag = QVBoxLayout()
+        self.chat_history = QTextEdit()
+        self.chat_history.setReadOnly(True)
+        ag.addWidget(self.chat_history)
+        chat_input_row = QHBoxLayout()
+        self.chat_input = QLineEdit()
+        self.chat_send_btn = QPushButton("Enviar")
+        chat_input_row.addWidget(self.chat_input)
+        chat_input_row.addWidget(self.chat_send_btn)
+        ag.addLayout(chat_input_row)
+        self.assistant_group.setLayout(ag)
+
+        if self.assistant is None:
+            self.chat_history.setPlainText(
+                "Assistente indisponível.\n"
+                + (f"Motivo: {self.assistant_error}" if self.assistant_error else "Verifique a configuração da API.")
+            )
+            self.chat_input.setDisabled(True)
+            self.chat_send_btn.setDisabled(True)
+
+        right_layout.addWidget(self.assistant_group)
         self.transactions_group.setLayout(right_layout)
 
+        # Conteúdo inicial
         self.content_layout.addWidget(self.chart_group, 3)
         self.content_layout.addWidget(self.transactions_group, 5)
 
-        # ------------------ Rodapé ------------------
-        self.footer_label = QLabel("Direitos Reservados à Croma Company - Dep. de Software")
-        self.footer_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.footer_label.setStyleSheet("color: gray; font-size: 10pt; margin-top: 10px;")
-        self.main_layout.addWidget(self.footer_label)
-
-        # ------------------ Conexões ------------------
+        # Conexões
         self.dashboard_btn.clicked.connect(self.show_dashboard_content)
         self.settings_btn.clicked.connect(self.show_settings_content)
-        self.transactions_btn.clicked.connect(self.open_transactions)
+        self.transactions_btn.clicked.connect(self.show_transactions_content)
         self.add_transaction_btn.clicked.connect(self.open_transaction_form)
         self.filter_btn.clicked.connect(self.open_filter_dialog)
+        self.refresh_btn.clicked.connect(self.update_dashboard)
+        self.logout_btn.clicked.connect(self.close)
+        self.chat_send_btn.clicked.connect(self.on_send_message)
 
-        self.update_dashboard()
+    # ---------------- Dashboard Logic ----------------
+    def update_dashboard(self, transactions=None):
+        # Carrega transações
+        self.transactions = transactions or load_transactions(user_id=self.username) or []
+        if not isinstance(self.transactions, list):
+            self.transactions = []
 
-    # ------------------ Atualização ------------------
-    def update_dashboard(self):
-        self.transactions = load_transactions(user_id=self.username)
-        self.load_transactions(self.transactions)
-        self.update_balance()
-        self.update_chart()
+        self.load_transactions_table(self.transactions)
+        self.update_balance(self.transactions)
+        self.update_chart(self.transactions)
 
-    def load_transactions(self, transactions=None):
-        transactions = transactions or self.transactions
+    def load_transactions_table(self, transactions):
+        display_currency = self.user_config.get("currency", "BRL")
         self.table.setRowCount(len(transactions))
         for row, tx in enumerate(transactions):
-            self.table.setItem(row, 0, QTableWidgetItem(tx.get("date", "")))
-            self.table.setItem(row, 1, QTableWidgetItem(tx.get("desc", "")))
-            self.table.setItem(row, 2, QTableWidgetItem(f"R$ {tx.get('amount',0):.2f}"))
-            self.table.setItem(row, 3, QTableWidgetItem(tx.get("type","")))
+            date_str = tx.get("date", "")
+            desc = tx.get("desc", "")
+            category = tx.get("category", "")
+            amount = float(tx.get("amount", 0) or 0)
+            tx_currency = tx.get("currency", "BRL")
+            typ = tx.get("type", "")
 
-    def update_balance(self):
-        saldo = sum(tx.get("amount",0) if tx.get("type") in ["entrada","receita"] else -tx.get("amount",0)
-                    for tx in self.transactions)
-        self.balance_label.setText(f"Saldo: R$ {saldo:.2f}")
+            try:
+                converted_amount = self.finance.convert_currency(amount, tx_currency, display_currency)
+            except Exception:
+                converted_amount = amount
 
-    def update_chart(self):
-        self.chart_canvas.figure.clear()
-        ax = self.chart_canvas.figure.add_subplot(111)
-        receita = sum(tx.get("amount",0) for tx in self.transactions if tx.get("type") in ["entrada","receita"])
-        despesa = sum(tx.get("amount",0) for tx in self.transactions if tx.get("type") in ["saída","despesa"])
-        ax.bar(["Receitas","Despesas"], [receita, despesa], color=['#10B981','#EF4444'])
-        ax.set_title("Resumo de Receitas vs Despesas")
-        self.chart_canvas.draw()
+            display_text = self.finance.format_currency(converted_amount, display_currency)
 
-    # ------------------ Ações ------------------
-    def open_transaction_form(self):
-        if not self.transaction_form:
-            self.transaction_form = TransactionForm(user_id=self.username)
-            self.transaction_form.transaction_added.connect(self.handle_new_transaction)
-            self.transaction_form.destroyed.connect(lambda: setattr(self, 'transaction_form', None))
-            self.transaction_form.show()
+            self.table.setItem(row, 0, QTableWidgetItem(date_str))
+            self.table.setItem(row, 1, QTableWidgetItem(desc))
+            self.table.setItem(row, 2, QTableWidgetItem(category))
+            self.table.setItem(row, 3, QTableWidgetItem(display_text))
+            self.table.setItem(row, 4, QTableWidgetItem(typ))
+
+    def update_balance(self, transactions):
+        saldo = 0.0
+        display_currency = self.user_config.get("currency", "BRL")
+        for tx in transactions:
+            amt = float(tx.get("amount", 0) or 0)
+            tx_currency = tx.get("currency", "BRL")
+            try:
+                converted = self.finance.convert_currency(amt, tx_currency, display_currency)
+            except Exception:
+                converted = amt
+            if tx.get("type") in ("entrada", "receita"):
+                saldo += converted
+            else:
+                saldo -= converted
+        self.balance_label.setText(f"Saldo: {self.finance.format_currency(saldo, display_currency)}")
+
+    def update_chart(self, transactions):
+        # normaliza transações
+        normalized = []
+        for tx in transactions:
+            amt = float(tx.get("amount", 0) or 0)
+            tx_currency = tx.get("currency", "BRL")
+            try:
+                converted = self.finance.convert_currency(amt, tx_currency, self.user_config.get("currency", "BRL"))
+            except Exception:
+                converted = amt
+            typ = tx.get("type", "").lower()
+            typ_std = "income" if typ in ("entrada", "receita", "income") else "expense"
+            normalized.append({"value": converted, "type": typ_std, "category": tx.get("category", "Outros")})
+
+        # definir cores de acordo com o tema
+        theme = self.user_config.get("theme", "light")
+        if theme == "dark":
+            bg_color = "#1E1E1E"
+            text_color = "#F9FAFB"
         else:
-            self.transaction_form.raise_()
-            self.transaction_form.activateWindow()
+            bg_color = "#F9FAFB"
+            text_color = "#1E1E1E"
 
-    def handle_new_transaction(self, transaction):
-        self.update_dashboard()
+        self.chart_canvas.update_chart(normalized, bg_color=bg_color, text_color=text_color)
 
+
+    # ---------------- Actions ----------------
+    def open_transaction_form(self):
+        form = TransactionForm(user_id=self.username)
+        form.transaction_added.connect(lambda _: self.update_dashboard())
+        try:
+            form.exec()
+        except Exception:
+            form.show()
+
+    # ---------------- Filter ----------------
     def open_filter_dialog(self):
-        if not self.filter_dialog:
-            self.filter_dialog = FilterDialog(self)
-        self.filter_dialog.show()
+        dlg = FilterDialog(self)
+        if dlg.exec() == QDialog.DialogCode.Accepted:
+            f = dlg.get_filters()
+            try:
+                filtered = filter_transactions(
+                    user_id=self.username,
+                    tx_type=f["type"],
+                    start_date=f["start_date"],
+                    end_date=f["end_date"],
+                    category=f["category"] or None,
+                    min_amount=f["min_amount"],
+                    max_amount=f["max_amount"],
+                )
+            except Exception:
+                filtered = self._local_filter(self.transactions, f)
+            self.update_dashboard(filtered)
 
-    def apply_filters(self, filtros):
-        filtradas = filter_transactions(self.transactions,
-                                       tipo=filtros["tipo"],
-                                       data_inicio=filtros["data_inicio"],
-                                       data_fim=filtros["data_fim"])
-        self.load_transactions(filtradas)
-        self.update_balance()
+    def _local_filter(self, transactions, f):
+        filtered = []
+        for tx in transactions:
+            if f["type"] and tx.get("type") != f["type"]:
+                continue
+            if f["category"] and tx.get("category") != f["category"]:
+                continue
+            tx_date = QDate.fromString(tx.get("date", ""), "yyyy-MM-dd")
+            if f["start_date"] and tx_date < f["start_date"]:
+                continue
+            if f["end_date"] and tx_date > f["end_date"]:
+                continue
+            amt = float(tx.get("amount", 0) or 0)
+            if f["min_amount"] and amt < f["min_amount"]:
+                continue
+            if f["max_amount"] and amt > f["max_amount"]:
+                continue
+            filtered.append(tx)
+        return filtered
 
-    # ------------------ Configurações e Transações ------------------
-    def show_settings_content(self):
-        from ui.settings_screen import SettingsScreen
-        for i in reversed(range(self.content_layout.count())):
-            widget = self.content_layout.itemAt(i).widget()
-            if widget:
-                widget.setParent(None)
-        self.settings_widget = SettingsScreen()
-        self.content_layout.addWidget(self.settings_widget)
-
+    # ---------------- Navigation ----------------
     def show_dashboard_content(self):
-        for i in reversed(range(self.content_layout.count())):
-            widget = self.content_layout.itemAt(i).widget()
-            if widget:
-                widget.setParent(None)
+        self.clear_content_layout()
         self.content_layout.addWidget(self.chart_group, 3)
         self.content_layout.addWidget(self.transactions_group, 5)
-# ------------------ Abrir Tela de Transações ------------------
-    def open_transactions(self):
-        # Remove widgets atuais do content_layout
-        for i in reversed(range(self.content_layout.count())):
-            widget = self.content_layout.itemAt(i).widget()
+
+    def show_settings_content(self):
+        self.clear_content_layout()
+        self.content_layout.addWidget(self.settings_widget)
+
+    def show_transactions_content(self):
+        self.clear_content_layout()
+        self.content_layout.addWidget(self.transactions_screen)
+
+    def clear_content_layout(self):
+        while self.content_layout.count():
+            widget = self.content_layout.takeAt(0).widget()
             if widget:
                 widget.setParent(None)
 
-        # Cria a tela de transações dentro do mesmo layout
-        from ui.transactions_screen import TransactionsScreen
-        self.transactions_window = TransactionsScreen(parent_layout=self.content_layout, user_id=self.username)
-        self.content_layout.addWidget(self.transactions_window)
+    # ---------------- Assistente ----------------
+    def on_send_message(self):
+        msg = self.chat_input.text().strip()
+        if not msg:
+            return
+        self.chat_history.append(f"Você: {msg}")
+        self.chat_input.clear()
+        if self.assistant:
+            response = self.assistant.ask(msg, user_id=self.username)
+            self.chat_history.append(f"Assistente: {response}")
+
+    # ---------------- Theme / Config handlers ----------------
+    def apply_theme(self, theme):
+        set_theme(theme)
+        self.setStyleSheet(load_theme_qss())
+        self.update_chart(self.transactions)
+
+    def apply_user_config(self, config: dict):
+        QTimer.singleShot(0, lambda cfg=config: self._apply_user_config_ui(cfg))
+
+    def _apply_user_config_ui(self, config: dict):
+        if not config:
+            return
+        self.user_config = config
+        theme = config.get("theme")
+        if theme:
+            self.apply_theme(theme)
+        avatar_color = config.get("avatar_color")
+        if avatar_color:
+            self.user_icon.setStyleSheet(f"border-radius:20px; background-color:{avatar_color};")
+        self.update_dashboard()
+
+    def on_config_changed(self, key, value):
+        self.user_config[key] = value
+        if key == "currency":
+            self.update_dashboard()
+        elif key == "theme":
+            self.apply_theme(value)
+
+
+# ---------------- Filter Dialog ----------------
+class FilterDialog(QDialog):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Filtrar Transações")
+        self.setMinimumWidth(350)
+        layout = QVBoxLayout()
+
+        self.type_cb = QComboBox()
+        self.type_cb.addItems(["", "entrada", "saída"])
+        layout.addWidget(QLabel("Tipo:"))
+        layout.addWidget(self.type_cb)
+
+        self.start_date = QDateEdit()
+        self.start_date.setCalendarPopup(True)
+        layout.addWidget(QLabel("Data Inicial:"))
+        layout.addWidget(self.start_date)
+
+        self.end_date = QDateEdit()
+        self.end_date.setCalendarPopup(True)
+        layout.addWidget(QLabel("Data Final:"))
+        layout.addWidget(self.end_date)
+
+        self.category_input = QLineEdit()
+        layout.addWidget(QLabel("Categoria:"))
+        layout.addWidget(self.category_input)
+
+        self.min_amount_input = QLineEdit()
+        self.max_amount_input = QLineEdit()
+        layout.addWidget(QLabel("Valor Mínimo:"))
+        layout.addWidget(self.min_amount_input)
+        layout.addWidget(QLabel("Valor Máximo:"))
+        layout.addWidget(self.max_amount_input)
+
+        btns = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
+        btns.accepted.connect(self.accept)
+        btns.rejected.connect(self.reject)
+        layout.addWidget(btns)
+        self.setLayout(layout)
+
+    def get_filters(self):
+        return {
+            "type": self.type_cb.currentText() or None,
+            "start_date": self.start_date.date() if self.start_date.date().isValid() else None,
+            "end_date": self.end_date.date() if self.end_date.date().isValid() else None,
+            "category": self.category_input.text().strip(),
+            "min_amount": float(self.min_amount_input.text() or 0),
+            "max_amount": float(self.max_amount_input.text() or 0),
+        }

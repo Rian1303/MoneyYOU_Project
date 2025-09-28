@@ -6,17 +6,27 @@ from PyQt6.QtCore import pyqtSignal, QDate
 from datetime import datetime
 import uuid
 
-# Ajuste a importação para a função genérica que salva tanto no Firebase quanto no SQLite
-from logic.transactions import add_transaction
+from database.data_manager import add_transaction  # Salva no Firebase + SQLite
+from logic.usr_config import UserConfigManager
+from logic.finance_logic import FinanceLogic
+
 
 class TransactionForm(QWidget):
-    transaction_added = pyqtSignal(dict)
+    transaction_added = pyqtSignal(dict)  # Emite o dict completo
 
     def __init__(self, user_id):
         super().__init__()
         self.user_id = user_id
         self.setWindowTitle("Adicionar Transação")
-        self.setMinimumWidth(300)
+        self.setMinimumWidth(350)
+
+        # 🔹 Configuração do usuário
+        self.config_manager = UserConfigManager(user_id)
+        self.user_currency = self.config_manager.get("currency") or "BRL"
+
+        # 🔹 FinanceLogic para conversão de moeda
+        self.finance = FinanceLogic()
+
         self.setup_ui()
 
     def setup_ui(self):
@@ -27,7 +37,7 @@ class TransactionForm(QWidget):
         self.desc_input = QLineEdit()
         layout.addWidget(self.desc_input)
 
-        # Tipo: entrada ou saída
+        # Tipo
         layout.addWidget(QLabel("Tipo:"))
         self.type_combo = QComboBox()
         self.type_combo.addItems(["entrada", "saída"])
@@ -40,7 +50,7 @@ class TransactionForm(QWidget):
         layout.addWidget(self.category_combo)
 
         # Valor
-        layout.addWidget(QLabel("Valor:"))
+        layout.addWidget(QLabel(f"Valor ({self.user_currency}):"))
         self.amount_input = QLineEdit()
         self.amount_input.setPlaceholderText("Ex: 100.00")
         layout.addWidget(self.amount_input)
@@ -64,8 +74,6 @@ class TransactionForm(QWidget):
         layout.addWidget(add_btn)
 
         self.setLayout(layout)
-
-        # Inicializa categorias
         self.update_categories(self.type_combo.currentText())
 
     def update_categories(self, tipo):
@@ -84,7 +92,7 @@ class TransactionForm(QWidget):
         data = self.date_edit.date().toPyDate()
         recurrence = self.recurrence_combo.currentText()
 
-        # Validações básicas
+        # 🔹 Validações
         if not desc:
             QMessageBox.warning(self, "Erro", "Descrição é obrigatória.")
             return
@@ -96,7 +104,10 @@ class TransactionForm(QWidget):
             QMessageBox.warning(self, "Erro", "Valor inválido. Informe um número positivo.")
             return
 
-        # Cria ID único para evitar duplicação
+        # 🔹 Converte valor para a moeda atual (se necessário)
+        converted_amount = self.finance.convert_currency(amount, self.user_currency, self.user_currency)
+
+        # 🔹 Gera ID temporário
         transaction_id = str(uuid.uuid4())
 
         transaction = {
@@ -105,15 +116,21 @@ class TransactionForm(QWidget):
             "desc": desc,
             "type": tipo,
             "category": categoria,
-            "amount": amount,
+            "amount": converted_amount,
             "date": data.strftime("%d/%m/%Y"),
-            "recurrence": recurrence
+            "recurrence": recurrence,
+            "currency": self.user_currency
         }
 
-        # Adiciona a transação via função genérica
-        result = add_transaction(transaction)
-        if result.get("status") == "success":
-            self.transaction_added.emit(transaction)
-            self.close()
-        else:
-            QMessageBox.warning(self, "Erro", result.get("message", "Erro ao salvar transação."))
+        # 🔹 Salva no Firebase + SQLite
+        firebase_id = add_transaction(transaction)
+        transaction["id"] = firebase_id
+
+        # 🔹 Emite para atualizar o Dashboard
+        self.transaction_added.emit(transaction)
+
+        # Fecha o form
+        self.close()
+
+    def closeEvent(self, event):
+        event.accept()

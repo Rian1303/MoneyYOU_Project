@@ -1,84 +1,81 @@
-# transactions_manager.py
+# logic/transactions_manager.py
 
-from logic.transactions import load_transactions, add_transaction
-from logic.firebase import sync_transactions_to_firebase
+from database.data_manager import load_transactions, add_transaction as save_transaction, delete_transaction
 from datetime import datetime
 import csv
 
-def get_transactions(start_date=None, end_date=None):
+# -------------------------------
+# Obter todas as transações
+# -------------------------------
+def get_all_transactions(user_id=None, start_date=None, end_date=None):
     """
-    Retorna lista de transações filtradas por período (opcional).
-    start_date e end_date devem ser objetos datetime ou None.
+    Retorna todas as transações, podendo filtrar por:
+    - user_id: retorna só transações do usuário
+    - start_date e end_date: objetos datetime.date
     """
-    transactions = load_transactions()
-    if start_date or end_date:
-        filtered = []
-        for t in transactions:
-            try:
-                t_date = datetime.strptime(t['date'], "%Y-%m-%d")
-            except Exception as e:
-                print(f"Erro ao ler data da transação {t.get('id')}: {e}")
-                continue
-            if (not start_date or t_date >= start_date) and (not end_date or t_date <= end_date):
-                filtered.append(t)
-        return filtered
+    transactions = load_transactions()  # pega todas do Firebase/SQLite
+
+    # Filtra por usuário
+    if user_id:
+        transactions = [t for t in transactions if t.get("user_id") == user_id]
+
+    # Função para converter data de string para datetime.date
+    def parse_date(tx):
+        d = tx.get("date", "")
+        try:
+            return datetime.strptime(d, "%Y-%m-%d").date()  # ajuste para o formato que você está salvando
+        except:
+            return None
+
+    if start_date:
+        transactions = [t for t in transactions if parse_date(t) and parse_date(t) >= start_date]
+    if end_date:
+        transactions = [t for t in transactions if parse_date(t) and parse_date(t) <= end_date]
+
     return transactions
 
-def remove_transaction(transaction_id):
-    """
-    Deleta transação local e sincroniza com Firebase.
-    Retorna True se sucesso, False se falhou.
-    """
-    transactions = load_transactions()
-    transaction_to_delete = next((t for t in transactions if t['id'] == transaction_id), None)
-    if not transaction_to_delete:
-        return False
+# -------------------------------
+# Adicionar transação
+# -------------------------------
+def add_transaction(transaction):
+    return save_transaction(transaction)
 
+# -------------------------------
+# Deletar transação
+# -------------------------------
+def remove_transaction(tx_id):
     try:
-        transactions.remove(transaction_to_delete)
-        sync_transactions_to_firebase(transactions)
+        delete_transaction(tx_id)
         return True
     except Exception as e:
-        print(f"Erro ao deletar transação: {e}")
+        print(f"[Erro] Não foi possível deletar: {e}")
         return False
 
+# -------------------------------
+# Restaurar transação
+# -------------------------------
 def restore_deleted_transaction(transaction):
-    """
-    Restaura transação local e sincroniza com Firebase.
-    """
-    transactions = load_transactions()
     try:
-        transactions.append(transaction)
-        sync_transactions_to_firebase(transactions)
+        add_transaction(transaction)
         return True
     except Exception as e:
-        print(f"Erro ao restaurar transação: {e}")
+        print(f"[Erro] Não foi possível restaurar: {e}")
         return False
 
-def export_transactions_csv(transactions, file_path):
-    """
-    Exporta lista de transações para CSV.
-    """
+# -------------------------------
+# Exportar CSV
+# -------------------------------
+def export_transactions_csv(transactions, path):
+    if not transactions:
+        print("Nenhuma transação para exportar.")
+        return False
     try:
-        with open(file_path, 'w', newline='', encoding='utf-8') as csvfile:
-            fieldnames = ['id', 'date', 'category', 'amount', 'description', 'type']
-            writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+        with open(path, 'w', newline='', encoding='utf-8') as csvfile:
+            writer = csv.DictWriter(csvfile, fieldnames=transactions[0].keys())
             writer.writeheader()
             for t in transactions:
                 writer.writerow(t)
         return True
     except Exception as e:
-        print(f"Erro ao exportar CSV: {e}")
+        print(f"[Erro CSV] {e}")
         return False
-
-def prepare_chart_data(transactions):
-    """
-    Prepara dados para gráfico (ex.: total por categoria).
-    Retorna dict {categoria: soma valores}.
-    """
-    chart_data = {}
-    for t in transactions:
-        cat = t.get('category', 'Outros')
-        amount = t.get('amount', 0)
-        chart_data[cat] = chart_data.get(cat, 0) + amount
-    return chart_data

@@ -1,48 +1,41 @@
-import json
+# theme_manager.py
+
 from pathlib import Path
-from PyQt6.QtWidgets import QApplication
+from config import LIGHT_THEME, DARK_THEME
 
-from config import LIGHT_THEME, DARK_THEME, JSON_DB_PATH
+# Variável global que mantém o tema atual
+CURRENT_THEME = "light"  # tema inicial
 
+# Caminho do arquivo QSS carregado
+CURRENT_QSS_PATH = LIGHT_THEME
 
-def set_theme(theme: str):
+def set_theme(theme_name: str):
     """
-    Aplica o tema escolhido (light ou dark) e salva no data.json
-    :param theme: "light" ou "dark"
+    Define o tema global do app.
+    Pode ser "light" ou "dark".
     """
-    theme_path = LIGHT_THEME if theme == "light" else DARK_THEME
-
-    # Aplica no app
-    app = QApplication.instance()
-    if app:
-        with open(theme_path, "r", encoding="utf-8") as f:
-            style = f.read()
-            app.setStyleSheet(style)
-
-    # Atualiza no JSON
-    if Path(JSON_DB_PATH).exists():
-        with open(JSON_DB_PATH, "r", encoding="utf-8") as f:
-            data = json.load(f)
+    global CURRENT_THEME, CURRENT_QSS_PATH
+    theme_name = theme_name.lower()
+    if theme_name == "light":
+        CURRENT_THEME = "light"
+        CURRENT_QSS_PATH = LIGHT_THEME
+    elif theme_name == "dark":
+        CURRENT_THEME = "dark"
+        CURRENT_QSS_PATH = DARK_THEME
     else:
-        data = {}
+        raise ValueError("Tema inválido. Use 'light' ou 'dark'.")
 
-    data["theme"] = theme
-
-    with open(JSON_DB_PATH, "w", encoding="utf-8") as f:
-        json.dump(data, f, indent=4)
-
-
-def load_theme():
+def get_theme() -> str:
     """
-    Carrega o último tema salvo no data.json (default = light)
+    Retorna o nome do tema atual: "light" ou "dark"
     """
-    theme = "light"
-    if Path(JSON_DB_PATH).exists():
-        with open(JSON_DB_PATH, "r", encoding="utf-8") as f:
-            try:
-                data = json.load(f)
-                theme = data.get("theme", "light")
-            except json.JSONDecodeError:
-                pass
+    return CURRENT_THEME
 
-    set_theme(theme)
+def load_theme_qss() -> str:
+    """
+    Retorna o conteúdo do arquivo QSS do tema atual
+    """
+    if not CURRENT_QSS_PATH.exists():
+        return ""
+    with open(CURRENT_QSS_PATH, "r", encoding="utf-8") as f:
+        return f.read()

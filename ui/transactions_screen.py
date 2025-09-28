@@ -1,4 +1,4 @@
-# transactions_screen.py
+# ui/transactions_screen.py
 
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
@@ -7,7 +7,7 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import Qt
 from logic.transactions_manager import (
-    get_transactions, remove_transaction, restore_deleted_transaction, export_transactions_csv
+    get_all_transactions, remove_transaction, restore_deleted_transaction, export_transactions_csv
 )
 from datetime import datetime
 
@@ -72,18 +72,23 @@ class FilterDialog(QGroupBox):
 
 # ------------------ TransactionsScreen ------------------
 class TransactionsScreen(QWidget):
-    LOAD_BATCH = 50  # número de linhas carregadas por vez
+    LOAD_BATCH = 50  # linhas carregadas por vez
 
-    def __init__(self, parent_layout, user_id):
+    def __init__(self, user_id, parent_layout=None):
         super().__init__()
-        self.parent_layout = parent_layout
         self.user_id = user_id
+        self.parent_layout = parent_layout
+        if self.parent_layout:
+            self.parent_layout.addWidget(self)
+
         self.deleted_transactions = []
-        self.all_transactions = get_transactions()
+        self.all_transactions = []
         self.displayed_transactions = []
-        self.filter_dialog = None
         self.next_load_index = 0
+        self.filter_dialog = None
+
         self.init_ui()
+        self.reload_transactions()
 
     def init_ui(self):
         self.main_layout = QVBoxLayout()
@@ -111,16 +116,13 @@ class TransactionsScreen(QWidget):
         self.table.verticalScrollBar().valueChanged.connect(self.check_scroll_end)
         self.main_layout.addWidget(self.table)
 
-        # ------------------ Conexões ------------------
+        # Conexões
         self.filter_btn.clicked.connect(self.open_filter_dialog)
         self.delete_btn.clicked.connect(self.delete_selected)
         self.restore_btn.clicked.connect(self.restore_last)
         self.export_btn.clicked.connect(self.export_csv)
 
-        # Carrega o primeiro batch de transações
-        self.load_next_batch()
-
-    # ------------------ Scroll Infinito ------------------
+    # ------------------ Scroll infinito ------------------
     def check_scroll_end(self, value):
         if value == self.table.verticalScrollBar().maximum():
             self.load_next_batch()
@@ -128,19 +130,30 @@ class TransactionsScreen(QWidget):
     def load_next_batch(self):
         if self.next_load_index >= len(self.all_transactions):
             return
+
         batch = self.all_transactions[self.next_load_index:self.next_load_index + self.LOAD_BATCH]
         start_row = self.table.rowCount()
         self.table.setRowCount(start_row + len(batch))
+
         for i, t in enumerate(batch):
-            self.table.setItem(start_row + i, 0, QTableWidgetItem(t.get('date','')))
-            self.table.setItem(start_row + i, 1, QTableWidgetItem(t.get('category','')))
-            self.table.setItem(start_row + i, 2, QTableWidgetItem(f"R$ {t.get('amount',0):.2f}"))
-            self.table.setItem(start_row + i, 3, QTableWidgetItem(t.get('type','')))
-            self.table.setItem(start_row + i, 4, QTableWidgetItem(t.get('desc','')))
+            date = t.get("date") or ""
+            category = t.get("category") or ""
+            amount = t.get("amount", 0.0)
+            ttype = t.get("type") or ""
+            desc = t.get("desc") or ""
+
+            self.table.setItem(start_row + i, 0, QTableWidgetItem(date))
+            self.table.setItem(start_row + i, 1, QTableWidgetItem(category))
+            self.table.setItem(start_row + i, 2, QTableWidgetItem(f"R$ {amount:.2f}"))
+            self.table.setItem(start_row + i, 3, QTableWidgetItem(ttype))
+            self.table.setItem(start_row + i, 4, QTableWidgetItem(desc))
+
             self.displayed_transactions.append(t)
+
         self.next_load_index += len(batch)
 
-    def reload_table(self):
+    def reload_transactions(self):
+        self.all_transactions = get_all_transactions(user_id=self.user_id)
         self.table.setRowCount(0)
         self.displayed_transactions = []
         self.next_load_index = 0
@@ -155,10 +168,11 @@ class TransactionsScreen(QWidget):
     def apply_filters(self, filtros):
         start_date = datetime.strptime(filtros["data_inicio"], "%d/%m/%Y") if filtros["data_inicio"] else None
         end_date = datetime.strptime(filtros["data_fim"], "%d/%m/%Y") if filtros["data_fim"] else None
-        self.all_transactions = get_transactions(start_date=start_date, end_date=end_date)
+
+        self.all_transactions = get_all_transactions(user_id=self.user_id, start_date=start_date, end_date=end_date)
         if filtros["tipo"]:
-            self.all_transactions = [t for t in self.all_transactions if t.get("type")==filtros["tipo"]]
-        self.reload_table()
+            self.all_transactions = [t for t in self.all_transactions if t.get("type") == filtros["tipo"]]
+        self.reload_transactions()
 
     # ------------------ Deletar / Restaurar ------------------
     def delete_selected(self):
@@ -166,11 +180,12 @@ class TransactionsScreen(QWidget):
         if row < 0:
             QMessageBox.warning(self, "Atenção", "Selecione uma transação para deletar.")
             return
+
         transaction = self.displayed_transactions[row]
         if remove_transaction(transaction['id']):
             self.deleted_transactions.append(transaction)
             self.all_transactions.remove(transaction)
-            self.reload_table()
+            self.reload_transactions()
 
     def restore_last(self):
         if not self.deleted_transactions:
@@ -179,11 +194,10 @@ class TransactionsScreen(QWidget):
         transaction = self.deleted_transactions.pop()
         if restore_deleted_transaction(transaction):
             self.all_transactions.append(transaction)
-            self.reload_table()
+            self.reload_transactions()
 
     # ------------------ Exportar CSV ------------------
     def export_csv(self):
-        # Abre diálogo para escolher o local do arquivo
         file_path, _ = QFileDialog.getSaveFileName(
             self, "Salvar CSV", f"transactions_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
             "CSV Files (*.csv)"

@@ -1,62 +1,105 @@
-from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel, QPushButton, QHBoxLayout
-from logic.theme_manager import set_theme, load_theme
-from PyQt6.QtCore import pyqtSignal
+# ui/settings_screen.py
+
+from PyQt6.QtWidgets import (
+    QWidget, QVBoxLayout, QLabel, QPushButton, QComboBox, QCheckBox, QHBoxLayout
+)
+from PyQt6.QtCore import Qt, pyqtSignal
+
+from logic.usr_config import UserConfigManager
+from logic.finance_logic import FinanceLogic
+from logic.theme_manager import set_theme, get_theme
 
 class SettingsScreen(QWidget):
-    # Signal que vai emitir o tema selecionado: "light" ou "dark"
     theme_changed = pyqtSignal(str)
+    config_changed = pyqtSignal(str, object)  # (chave, valor)
 
-    def __init__(self, parent=None, current_theme="light"):
-        super().__init__(parent)
-        self.current_theme = current_theme
+    def __init__(self, user_id: str):
+        super().__init__()
+        self.user_id = user_id
+        self.finance = FinanceLogic()
+        self.user_config = UserConfigManager.get_user_config(self.user_id) or {}
+        self.init_ui()
+        self.load_from_config(self.user_config)
 
+    def init_ui(self):
         layout = QVBoxLayout(self)
 
-        # Título
         title = QLabel("⚙️ Configurações")
-        title.setStyleSheet("font-size: 18px; font-weight: bold;")
+        title.setStyleSheet("font-size: 18pt; font-weight: bold;")
         layout.addWidget(title)
 
-        # Seção de Login (ilustrativa)
-        login_label = QLabel("🔑 Login e Conta (em breve)")
-        layout.addWidget(login_label)
-
-        # Seção de Idioma (ilustrativa)
-        lang_label = QLabel("🌍 Idioma (em breve)")
-        layout.addWidget(lang_label)
-
-        # Seção de Moeda (ilustrativa)
-        currency_label = QLabel("💰 Moeda (em breve)")
-        layout.addWidget(currency_label)
-
-        # Seção de Preferências (tema já funcionando)
-        pref_label = QLabel("🎨 Preferências")
-        layout.addWidget(pref_label)
-
-        # Botões de Tema
-        theme_layout = QHBoxLayout()
+        # Tema
+        tbox = QHBoxLayout()
         self.light_btn = QPushButton("Modo Claro")
         self.dark_btn = QPushButton("Modo Escuro")
+        self.light_btn.clicked.connect(lambda: self.on_theme_change("light"))
+        self.dark_btn.clicked.connect(lambda: self.on_theme_change("dark"))
+        tbox.addWidget(self.light_btn)
+        tbox.addWidget(self.dark_btn)
+        layout.addLayout(tbox)
 
-        self.light_btn.clicked.connect(lambda: self.change_theme("light"))
-        self.dark_btn.clicked.connect(lambda: self.change_theme("dark"))
+        # Moeda
+        layout.addWidget(QLabel("💰 Moeda padrão"))
+        self.currency_cb = QComboBox()
+        self.currency_cb.addItems(["BRL", "USD", "EUR", "JPY"])
+        self.currency_cb.currentTextChanged.connect(self.on_currency_change)
+        layout.addWidget(self.currency_cb)
 
-        theme_layout.addWidget(self.light_btn)
-        theme_layout.addWidget(self.dark_btn)
-        layout.addLayout(theme_layout)
+        # Timezone
+        layout.addWidget(QLabel("⏱️ Fuso horário"))
+        self.tz_cb = QComboBox()
+        self.tz_cb.addItems(["UTC-5", "UTC-3", "UTC+0", "UTC+1", "UTC+9"])
+        self.tz_cb.currentTextChanged.connect(self.on_timezone_change)
+        layout.addWidget(self.tz_cb)
 
-        # Define o tema inicial
-        self.apply_theme(current_theme)
+        # Mostrar email/data
+        self.show_email_chk = QCheckBox("Mostrar email no perfil")
+        self.show_email_chk.stateChanged.connect(lambda _: self.on_flag_change("show_email", self.show_email_chk.isChecked()))
+        layout.addWidget(self.show_email_chk)
+
+        self.show_birth_chk = QCheckBox("Mostrar data de nascimento")
+        self.show_birth_chk.stateChanged.connect(lambda _: self.on_flag_change("show_birthdate", self.show_birth_chk.isChecked()))
+        layout.addWidget(self.show_birth_chk)
 
         layout.addStretch()
+        self.setLayout(layout)
 
-    def change_theme(self, theme_name):
-        set_theme(theme_name)  # Atualiza o tema no sistema
-        self.apply_theme(theme_name)
-        self.theme_changed.emit(theme_name)  # Notifica o Dashboard
+    def load_from_config(self, cfg: dict):
+        # preencher controles com config existente
+        theme = cfg.get("theme", get_theme())
+        currency = cfg.get("currency", "BRL")
+        tz = cfg.get("timezone", "UTC-3")
+        show_email = bool(cfg.get("show_email", True))
+        show_birth = bool(cfg.get("show_birthdate", False))
 
-    def apply_theme(self, theme_name):
-        if theme_name == "dark":
-            self.setStyleSheet("background-color: #1E1E1E; color: #F9FAFB;")
-        else:
-            self.setStyleSheet("background-color: #F9FAFB; color: #1E1E1E;")
+        # Selecionar sem disparar handlers demais:
+        idx = self.currency_cb.findText(currency)
+        if idx >= 0:
+            self.currency_cb.setCurrentIndex(idx)
+        idx = self.tz_cb.findText(tz)
+        if idx >= 0:
+            self.tz_cb.setCurrentIndex(idx)
+        self.show_email_chk.setChecked(show_email)
+        self.show_birth_chk.setChecked(show_birth)
+
+        # aplica tema visual imediato
+        set_theme(theme)
+
+    # handlers
+    def on_theme_change(self, theme_name: str):
+        # salva e emite
+        UserConfigManager.update_user_config(self.user_id, {"theme": theme_name})
+        self.theme_changed.emit(theme_name)
+        self.config_changed.emit("theme", theme_name)
+
+    def on_currency_change(self, new_currency: str):
+        UserConfigManager.update_user_config(self.user_id, {"currency": new_currency})
+        self.config_changed.emit("currency", new_currency)
+
+    def on_timezone_change(self, new_tz: str):
+        UserConfigManager.update_user_config(self.user_id, {"timezone": new_tz})
+        self.config_changed.emit("timezone", new_tz)
+
+    def on_flag_change(self, key: str, value):
+        UserConfigManager.update_user_config(self.user_id, {key: value})
+        self.config_changed.emit(key, value)

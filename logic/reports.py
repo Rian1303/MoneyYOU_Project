@@ -1,12 +1,11 @@
+import pandas as pd
+import matplotlib.pyplot as plt
+from io import BytesIO
+
+
 def generate_monthly_report(transactions):
     """
     Generates a basic monthly report of transactions.
-
-    Args:
-        transactions (list): List of transaction dictionaries.
-
-    Returns:
-        dict: Totals for income, expenses, and balance for the month.
     """
     total_income = 0.0
     total_expenses = 0.0
@@ -35,12 +34,6 @@ def generate_monthly_report(transactions):
 def calculate_totals_by_category(transactions):
     """
     Calculates totals grouped by category.
-
-    Args:
-        transactions (list): List of transaction dictionaries.
-
-    Returns:
-        dict: Keys are categories, values are totals.
     """
     category_totals = {}
 
@@ -56,3 +49,44 @@ def calculate_totals_by_category(transactions):
 
     return category_totals
 
+
+def generate_pie_chart(transactions):
+    """
+    Generates a pie chart of expenses grouped by category.
+    Returns a BytesIO buffer with the PNG image (to be used in Qt).
+    """
+    # Filtrar apenas despesas
+    expenses = [t for t in transactions if t.get("type") == "expense"]
+
+    if not expenses:
+        return None
+
+    df = pd.DataFrame(expenses)
+
+    # Agrupar por categoria
+    df_grouped = df.groupby("category")["value"].sum().reset_index()
+
+    # Paleta de cores institucionais (MoneyYOU)
+    colors = ["#7C3AED", "#A855F7", "#1E1E1E", "#6366F1", "#F97316"]
+
+    # Criar gráfico
+    fig, ax = plt.subplots(figsize=(5, 5))
+    wedges, texts, autotexts = ax.pie(
+        df_grouped["value"],
+        labels=df_grouped["category"],
+        autopct="%.1f%%",
+        colors=colors[:len(df_grouped)],
+        startangle=140,
+        textprops={"fontsize": 9, "color": "white"},
+        wedgeprops={"linewidth": 1, "edgecolor": "white"},
+    )
+
+    ax.set_title("Distribuição de Despesas", fontsize=12, weight="bold", color="#1E1E1E")
+
+    # Exportar para buffer
+    buf = BytesIO()
+    plt.savefig(buf, format="png", transparent=True, bbox_inches="tight")
+    plt.close(fig)
+
+    buf.seek(0)
+    return buf
