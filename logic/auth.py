@@ -1,6 +1,9 @@
 import sys
 import os
 import sqlite3
+import hashlib
+import datetime
+from typing import Tuple
 from logic.firebase import db  # Cliente Firestore
 
 # Detecta se está rodando empacotado (PyInstaller)
@@ -15,58 +18,69 @@ def resource_path(relative_path):
     return os.path.join(base_path, relative_path)
 
 DB_PATH = resource_path("database/db.sqlite")
-MIN_PASSWORD_LENGTH = 4  # Configurável
+MIN_PASSWORD_LENGTH = 6
 
 # -------------------------------
-# Conexão SQLite (fallback/dev)
+# Funções auxiliares
 # -------------------------------
 def connect():
     return sqlite3.connect(DB_PATH)
+
+def hash_password(password: str) -> str:
+    """Gera hash SHA-256 da senha"""
+    return hashlib.sha256(password.encode()).hexdigest()
+
+def verify_password(password: str, hashed: str) -> bool:
+    """Verifica senha comparando com hash"""
+    return hash_password(password) == hashed
 
 # -------------------------------
 # Validação de login
 # -------------------------------
 def validate_login(username: str, password: str) -> bool:
-    # Primeiro tenta no Firebase
+    hashed = hash_password(password)
+
+    # Firebase
     doc = db.collection("users").document(username).get()
     if doc.exists:
-        return doc.to_dict().get("password") == password
+        return verify_password(password, doc.to_dict().get("password"))
 
-    # Se não existir no Firebase, tenta no SQLite
+    # SQLite fallback
     try:
         conn = connect()
         cursor = conn.cursor()
         cursor.execute("SELECT password FROM users WHERE username = ?", (username,))
         result = cursor.fetchone()
         conn.close()
-        return result is not None and result[0] == password
+        return result is not None and verify_password(password, result[0])
     except Exception:
         return False
 
 # -------------------------------
-# Validação de cadastro
+# Validação de registro
 # -------------------------------
-def validate_registration(username: str, password: str, confirm_password: str) -> (bool, str):
-    if not username or not password or not confirm_password:
+def validate_registration(username: str, password: str, confirm_password: str, email: str) -> Tuple[bool, str]:
+    if not username or not password or not confirm_password or not email:
         return False, "Preencha todos os campos."
     if len(password) < MIN_PASSWORD_LENGTH:
         return False, f"A senha deve ter pelo menos {MIN_PASSWORD_LENGTH} caracteres."
     if password != confirm_password:
         return False, "As senhas não conferem."
+    if "@" not in email or "." not in email:
+        return False, "Email inválido."
 
-    # Verifica se já existe no Firebase
+    # Verifica Firebase
     if db.collection("users").document(username).get().exists:
         return False, "Usuário já existe."
-
-    # Opcional: verifica no SQLite como fallback
+    # Verifica SQLite
     try:
         conn = connect()
         cursor = conn.cursor()
-        cursor.execute("SELECT 1 FROM users WHERE username = ?", (username,))
+        cursor.execute("SELECT 1 FROM users WHERE username = ? OR email = ?", (username, email))
         exists = cursor.fetchone()
         conn.close()
         if exists:
-            return False, "Usuário já existe."
+            return False, "Usuário ou email já existem."
     except Exception:
         pass
 
@@ -75,89 +89,84 @@ def validate_registration(username: str, password: str, confirm_password: str) -
 # -------------------------------
 # Registro de usuário
 # -------------------------------
-def register_user(username: str, password: str) -> None:
-    # Firebase principal
-    db.collection("users").document(username).set({
+def register_user(username: str, password: str, email: str, role: str = "user") -> bool:
+    hashed = hash_password(password)
+    user_data = {
         "username": username,
-        "password": password
-    })
-    print(f"[Firebase] Usuário '{username}' adicionado com sucesso.")
+        "email": email,
+        "password": hashed,
+        "role": role,
+        "created_at": datetime.datetime.utcnow().isoformat()
+    }
 
-    # SQLite fallback (desenvolvimento)
-    if not IS_FROZEN:
-        try:
-            conn = connect()
-            cursor = conn.cursor()
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS users (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    username TEXT UNIQUE NOT NULL,
-                    password TEXT NOT NULL
-                )
-            """)
-            cursor.execute("INSERT OR IGNORE INTO users (username, password) VALUES (?, ?)", (username, password))
-            conn.commit()
-            conn.close()
-        except Exception as e:
-            print(f"[SQLite] Erro ao salvar usuário localmente: {e}")
-
-# -------------------------------
-# Sincronização de usuários SQLite → Firebase (opcional)
-# -------------------------------
-def sync_users_to_firebase():
     try:
-        conn = connect()
-        cursor = conn.cursor()
-        cursor.execute("SELECT username, password FROM users")
-        all_users = cursor.fetchall()
-        conn.close()
+        # Firebase
+        db.collection("users").document(username).set(user_data)
+        print(f"[Firebase] Usuário '{username}' criado.")
 
-        count = 0
-        for username, password in all_users:
-            db.collection("users").document(username).set({
-                "username": username,
-                "password": password
-            })
-            count += 1
-            print(f"[Firebase] Usuário '{username}' sincronizado.")
-        print(f"[Firebase] Total de {count} usuários sincronizados.")
-    except Exception as e:
-        print(f"[sync_users_to_firebase] Erro: {e}")
-def create_master_user():
-    """
-    Cria um usuário master padrão:
-    - username: master
-    - password: master123
-    Prioriza Firebase e, se em desenvolvimento, também salva no SQLite.
-    """
-    username = "master"
-    password = "master123"
-
-    # Verifica se já existe no Firebase
-    if db.collection("users").document(username).get().exists:
-        print("[Firebase] Usuário master já existe.")
-    else:
-        db.collection("users").document(username).set({
-            "username": username,
-            "password": password
-        })
-        print("[Firebase] Usuário master criado: username='master', senha='master123'")
-
-    # SQLite fallback (apenas desenvolvimento)
-    if not IS_FROZEN:
-        try:
+        # SQLite
+        if not IS_FROZEN:
             conn = connect()
             cursor = conn.cursor()
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS users (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     username TEXT UNIQUE NOT NULL,
-                    password TEXT NOT NULL
+                    email TEXT UNIQUE NOT NULL,
+                    password TEXT NOT NULL,
+                    role TEXT DEFAULT 'user',
+                    created_at TEXT
                 )
             """)
-            cursor.execute("INSERT OR IGNORE INTO users (username, password) VALUES (?, ?)", (username, password))
+            cursor.execute("""
+                INSERT OR IGNORE INTO users (username, email, password, role, created_at)
+                VALUES (?, ?, ?, ?, ?)
+            """, (username, email, hashed, role, user_data["created_at"]))
             conn.commit()
             conn.close()
-            print("[SQLite] Usuário master criado localmente (dev).")
-        except Exception as e:
-            print(f"[SQLite] Erro ao criar usuário master localmente: {e}")
+        return True
+    except Exception as e:
+        print(f"[register_user] Erro: {e}")
+        return False
+
+# -------------------------------
+# Mudar senha
+# -------------------------------
+def change_password(username: str, email: str, new_password: str) -> bool:
+    if len(new_password) < MIN_PASSWORD_LENGTH:
+        return False
+
+    hashed = hash_password(new_password)
+
+    try:
+        # Firebase
+        doc_ref = db.collection("users").document(username)
+        doc = doc_ref.get()
+        if doc.exists:
+            user_data = doc.to_dict()
+            if user_data.get("email") != email:
+                print("[Firebase] Email não confere.")
+                return False
+            doc_ref.update({"password": hashed})
+            print(f"[Firebase] Senha do usuário '{username}' atualizada.")
+        else:
+            print(f"[Firebase] Usuário '{username}' não encontrado.")
+
+        # SQLite
+        if not IS_FROZEN:
+            conn = connect()
+            cursor = conn.cursor()
+            cursor.execute("UPDATE users SET password = ? WHERE username = ? AND email = ?",
+                           (hashed, username, email))
+            conn.commit()
+            conn.close()
+        return True
+    except Exception as e:
+        print(f"[change_password] Erro: {e}")
+        return False
+
+# -------------------------------
+# Criar usuário master
+# -------------------------------
+def create_master_user():
+    register_user("master", "master123", "master@moneyyou.com", role="admin")

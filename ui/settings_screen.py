@@ -17,9 +17,11 @@ class SettingsScreen(QWidget):
         super().__init__()
         self.user_id = user_id
         self.finance = FinanceLogic()
-        self.user_config = UserConfigManager.get_user_config(self.user_id) or {}
+        # Cria instância do config do usuário
+        self.user_config = UserConfigManager(self.user_id)
+
         self.init_ui()
-        self.load_from_config(self.user_config)
+        self.load_from_config(self.user_config.config)
 
     def init_ui(self):
         layout = QVBoxLayout(self)
@@ -67,7 +69,7 @@ class SettingsScreen(QWidget):
     def load_from_config(self, cfg: dict):
         # preencher controles com config existente
         theme = cfg.get("theme", get_theme())
-        currency = cfg.get("currency", "BRL")
+        currency = self.user_config.get("currency", "BRL")
         tz = cfg.get("timezone", "UTC-3")
         show_email = bool(cfg.get("show_email", True))
         show_birth = bool(cfg.get("show_birthdate", False))
@@ -87,19 +89,18 @@ class SettingsScreen(QWidget):
 
     # handlers
     def on_theme_change(self, theme_name: str):
-        # salva e emite
-        UserConfigManager.update_user_config(self.user_id, {"theme": theme_name})
+        self.user_config.set("theme", theme_name)
         self.theme_changed.emit(theme_name)
         self.config_changed.emit("theme", theme_name)
 
     def on_currency_change(self, new_currency: str):
-        UserConfigManager.update_user_config(self.user_id, {"currency": new_currency})
+        self.user_config.set("currency", new_currency)
         self.config_changed.emit("currency", new_currency)
 
     def on_timezone_change(self, new_tz: str):
-        UserConfigManager.update_user_config(self.user_id, {"timezone": new_tz})
+        self.user_config.set("timezone", new_tz)
         self.config_changed.emit("timezone", new_tz)
 
     def on_flag_change(self, key: str, value):
-        UserConfigManager.update_user_config(self.user_id, {key: value})
+        self.user_config.set(key, value)
         self.config_changed.emit(key, value)

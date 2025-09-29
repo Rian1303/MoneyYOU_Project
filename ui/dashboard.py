@@ -32,14 +32,14 @@ class DashboardWindow(QWidget):
 
         self.finance = FinanceLogic()
 
-        # Widgets fixos
+        # ---------------- Configurações ----------------
         self.settings_widget = SettingsScreen(self.username)
         self.settings_widget.theme_changed.connect(self.apply_theme)
         self.settings_widget.config_changed.connect(self.on_config_changed)
 
         self.transactions_screen = TransactionsScreen(self.username)
 
-        # Assistente opcional
+        # Assistente Financeiro
         self.assistant = None
         self.assistant_error = None
         if AIAssistant:
@@ -48,7 +48,7 @@ class DashboardWindow(QWidget):
             except Exception as e:
                 self.assistant_error = str(e)
 
-        # Carregar configs do Firebase
+        # Carregar configs do usuário
         try:
             cfg = UserConfigManager.get_user_config(self.username)
         except Exception:
@@ -56,29 +56,33 @@ class DashboardWindow(QWidget):
         self.apply_user_config(cfg)
 
         try:
-            self.config_listener = UserConfigManager.listen_user_config(self.username, self.apply_user_config)
+            self.config_listener = UserConfigManager.listen_user_config(
+                self.username, self.apply_user_config
+            )
         except Exception:
             self.config_listener = None
 
+        # Montar interface
         self.init_ui()
         self.update_dashboard()
 
     # ---------------- UI ----------------
     def init_ui(self):
-        self.setWindowTitle("Dashboard")
-        self.setMinimumSize(1100, 720)
+        self.setWindowTitle("MoneyYOU - Dashboard")
+        self.setMinimumSize(1150, 750)
 
         self.main_layout = QVBoxLayout(self)
 
-        # Topbar
+        # ---------- Topbar ----------
         self.topbar_layout = QHBoxLayout()
-        self.dashboard_btn = QPushButton("Dashboard")
-        self.transactions_btn = QPushButton("Transações")
-        self.settings_btn = QPushButton("Configurações")
-        self.logout_btn = QPushButton("Logout")
+        self.dashboard_btn = QPushButton("🏠 Início")
+        self.transactions_btn = QPushButton("📑 Transações")
+        self.settings_btn = QPushButton("⚙️ Configurações")
+        self.logout_btn = QPushButton("⏻ Sair")
 
         for btn in [self.dashboard_btn, self.transactions_btn, self.settings_btn, self.logout_btn]:
             btn.setFixedHeight(36)
+            btn.setStyleSheet("font-weight: bold;")
 
         self.topbar_layout.addWidget(self.dashboard_btn)
         self.topbar_layout.addWidget(self.transactions_btn)
@@ -87,42 +91,45 @@ class DashboardWindow(QWidget):
 
         # Avatar simples
         self.user_icon = QLabel()
-        self.user_icon.setFixedSize(40, 40)
-        self.user_icon.setStyleSheet("border-radius:20px; background-color:#7C3AED;")
+        self.user_icon.setFixedSize(42, 42)
+        self.user_icon.setStyleSheet("border-radius:21px; background-color:#7C3AED;")
         self.topbar_layout.addWidget(self.user_icon)
         self.topbar_layout.addWidget(self.logout_btn)
 
         self.main_layout.addLayout(self.topbar_layout)
 
-        # Conteúdo principal
+        # ---------- Conteúdo ----------
         self.content_layout = QHBoxLayout()
         self.main_layout.addLayout(self.content_layout)
 
-        # --- Grupo Gráfico ---
-        self.chart_group = QGroupBox("Resumo Financeiro")
+        # Grupo gráfico
+        self.chart_group = QGroupBox("📊 Resumo Financeiro")
         chart_layout = QVBoxLayout()
         self.chart_canvas = ChartWidget([])
         chart_layout.addWidget(self.chart_canvas)
         self.chart_group.setLayout(chart_layout)
 
-        # --- Grupo Transações + Controles ---
-        self.transactions_group = QGroupBox("Transações")
+        # Grupo transações e assistente
+        self.transactions_group = QGroupBox("💰 Transações e Assistente")
         right_layout = QVBoxLayout()
 
+        # Saldo
         self.balance_label = QLabel("Saldo: R$ 0,00")
         self.balance_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.balance_label.setStyleSheet("font-size:14pt; font-weight:bold; margin: 6px 0;")
+        self.balance_label.setStyleSheet("font-size:16pt; font-weight:bold; margin: 10px 0;")
         right_layout.addWidget(self.balance_label)
 
+        # Botões de ação
         controls = QHBoxLayout()
-        self.add_transaction_btn = QPushButton("Adicionar")
-        self.filter_btn = QPushButton("Filtrar")
-        self.refresh_btn = QPushButton("Atualizar")
+        self.add_transaction_btn = QPushButton("➕ Adicionar")
+        self.filter_btn = QPushButton("🔍 Filtrar")
+        self.refresh_btn = QPushButton("🔄 Atualizar")
         controls.addWidget(self.add_transaction_btn)
         controls.addWidget(self.filter_btn)
         controls.addWidget(self.refresh_btn)
         right_layout.addLayout(controls)
 
+        # Tabela
         self.table = QTableWidget()
         self.table.setColumnCount(5)
         self.table.setHorizontalHeaderLabels(["Data", "Descrição", "Categoria", "Valor", "Tipo"])
@@ -131,14 +138,17 @@ class DashboardWindow(QWidget):
         self.table.setAlternatingRowColors(True)
         right_layout.addWidget(self.table)
 
-        # --- Grupo Assistente ---
-        self.assistant_group = QGroupBox("Assistente Financeiro (beta)")
+        # Assistente Financeiro
+        self.assistant_group = QGroupBox("🤖 Assistente Financeiro (Beta)")
         ag = QVBoxLayout()
         self.chat_history = QTextEdit()
         self.chat_history.setReadOnly(True)
+        self.chat_history.setStyleSheet("background:#1E1E1E; color:#F9FAFB; padding:5px; border-radius:8px;")
         ag.addWidget(self.chat_history)
+
         chat_input_row = QHBoxLayout()
         self.chat_input = QLineEdit()
+        self.chat_input.setPlaceholderText("Digite sua dúvida financeira...")
         self.chat_send_btn = QPushButton("Enviar")
         chat_input_row.addWidget(self.chat_input)
         chat_input_row.addWidget(self.chat_send_btn)
@@ -147,7 +157,7 @@ class DashboardWindow(QWidget):
 
         if self.assistant is None:
             self.chat_history.setPlainText(
-                "Assistente indisponível.\n"
+                "⚠️ Assistente indisponível.\n"
                 + (f"Motivo: {self.assistant_error}" if self.assistant_error else "Verifique a configuração da API.")
             )
             self.chat_input.setDisabled(True)
@@ -156,11 +166,11 @@ class DashboardWindow(QWidget):
         right_layout.addWidget(self.assistant_group)
         self.transactions_group.setLayout(right_layout)
 
-        # Conteúdo inicial
+        # Layout inicial
         self.content_layout.addWidget(self.chart_group, 3)
-        self.content_layout.addWidget(self.transactions_group, 5)
+        self.content_layout.addWidget(self.transactions_group, 6)
 
-        # Conexões
+        # ---------- Conexões ----------
         self.dashboard_btn.clicked.connect(self.show_dashboard_content)
         self.settings_btn.clicked.connect(self.show_settings_content)
         self.transactions_btn.clicked.connect(self.show_transactions_content)
@@ -172,7 +182,6 @@ class DashboardWindow(QWidget):
 
     # ---------------- Dashboard Logic ----------------
     def update_dashboard(self, transactions=None):
-        # Carrega transações
         self.transactions = transactions or load_transactions(user_id=self.username) or []
         if not isinstance(self.transactions, list):
             self.transactions = []
@@ -222,7 +231,6 @@ class DashboardWindow(QWidget):
         self.balance_label.setText(f"Saldo: {self.finance.format_currency(saldo, display_currency)}")
 
     def update_chart(self, transactions):
-        # normaliza transações
         normalized = []
         for tx in transactions:
             amt = float(tx.get("amount", 0) or 0)
@@ -235,7 +243,6 @@ class DashboardWindow(QWidget):
             typ_std = "income" if typ in ("entrada", "receita", "income") else "expense"
             normalized.append({"value": converted, "type": typ_std, "category": tx.get("category", "Outros")})
 
-        # definir cores de acordo com o tema
         theme = self.user_config.get("theme", "light")
         if theme == "dark":
             bg_color = "#1E1E1E"
@@ -246,15 +253,11 @@ class DashboardWindow(QWidget):
 
         self.chart_canvas.update_chart(normalized, bg_color=bg_color, text_color=text_color)
 
-
     # ---------------- Actions ----------------
     def open_transaction_form(self):
-        form = TransactionForm(user_id=self.username)
-        form.transaction_added.connect(lambda _: self.update_dashboard())
-        try:
-            form.exec()
-        except Exception:
-            form.show()
+        self.transaction_form = TransactionForm(user_id=self.username)
+        self.transaction_form.transaction_added.connect(self.update_dashboard)
+        self.transaction_form.show()
 
     # ---------------- Filter ----------------
     def open_filter_dialog(self):
@@ -295,11 +298,11 @@ class DashboardWindow(QWidget):
             filtered.append(tx)
         return filtered
 
-    # ---------------- Navigation ----------------
+    # ---------------- Navegação ----------------
     def show_dashboard_content(self):
         self.clear_content_layout()
         self.content_layout.addWidget(self.chart_group, 3)
-        self.content_layout.addWidget(self.transactions_group, 5)
+        self.content_layout.addWidget(self.transactions_group, 6)
 
     def show_settings_content(self):
         self.clear_content_layout()
@@ -320,13 +323,13 @@ class DashboardWindow(QWidget):
         msg = self.chat_input.text().strip()
         if not msg:
             return
-        self.chat_history.append(f"Você: {msg}")
+        self.chat_history.append(f"👤 Você: {msg}")
         self.chat_input.clear()
         if self.assistant:
             response = self.assistant.ask(msg, user_id=self.username)
-            self.chat_history.append(f"Assistente: {response}")
+            self.chat_history.append(f"🤖 Assistente: {response}")
 
-    # ---------------- Theme / Config handlers ----------------
+    # ---------------- Theme / Config ----------------
     def apply_theme(self, theme):
         set_theme(theme)
         self.setStyleSheet(load_theme_qss())
@@ -344,15 +347,23 @@ class DashboardWindow(QWidget):
             self.apply_theme(theme)
         avatar_color = config.get("avatar_color")
         if avatar_color:
-            self.user_icon.setStyleSheet(f"border-radius:20px; background-color:{avatar_color};")
+            self.user_icon.setStyleSheet(f"border-radius:21px; background-color:{avatar_color};")
         self.update_dashboard()
 
     def on_config_changed(self, key, value):
         self.user_config[key] = value
+        UserConfigManager.set_user_config(self.username, self.user_config)  # salva config
         if key == "currency":
             self.update_dashboard()
         elif key == "theme":
             self.apply_theme(value)
+
+    def closeEvent(self, event):
+        try:
+            UserConfigManager.set_user_config(self.username, self.user_config)
+        except Exception as e:
+            print(f"Erro ao salvar configurações: {e}")
+        super().closeEvent(event)
 
 
 # ---------------- Filter Dialog ----------------

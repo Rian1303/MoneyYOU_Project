@@ -2,12 +2,12 @@ import sys
 import os
 from pathlib import Path
 from PyQt6.QtGui import QIcon
-from PyQt6.QtWidgets import QApplication
+from PyQt6.QtWidgets import QApplication, QMessageBox
 from ui.login_screen import LoginScreen
 from ui.dashboard import DashboardWindow
 from ui.register_window import RegisterWindow
 import config
-from logic.auth import create_master_user
+#from logic.auth import create_master_user
 from logic.theme_manager import load_theme_qss
 
 
@@ -50,20 +50,18 @@ class AppController:
         self.dashboard_window.show()
 
     def show_register(self):
-        if not self.register_window:
-            self.register_window = RegisterWindow()
-            self.register_window.user_registered.connect(self.handle_new_user)
-            self.register_window.show()
-        else:
-            self.register_window.raise_()
-            self.register_window.activateWindow()
+        from ui.register_window import RegisterWindow
+        self.register_window = RegisterWindow()
+        self.register_window.user_registered.connect(self.handle_new_user)  # <- agora correto
+        self.register_window.show()
 
-    def handle_new_user(self, username, _):
-        # Apenas fecha janela após cadastro com sucesso
-        self.login_window.show()
-        self.register_window.close()
-        self.register_window = None
-    
+    def handle_new_user(self, username):
+        print(f"Novo usuário registrado: {username}")
+        # Atualiza campo de login com o novo usuário
+        self.login_screen.user_input.setText(username)
+        QMessageBox.information(self.login_screen, "Sucesso", f"Usuário '{username}' registrado! Agora faça login.")
+
+        
 if __name__ == "__main__":
     AppController()
    

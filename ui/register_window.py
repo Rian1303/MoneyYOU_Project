@@ -1,58 +1,82 @@
-from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel, QLineEdit, QPushButton, QMessageBox
-from PyQt6.QtCore import pyqtSignal
-from logic.auth import register_user as auth_register_user  # Função para registrar no banco
+from PyQt6.QtWidgets import (
+    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton, QMessageBox
+)
+from PyQt6.QtCore import pyqtSignal, Qt
+from logic.auth import validate_registration, register_user
 
 class RegisterWindow(QWidget):
-    user_registered = pyqtSignal(str, str)
+    user_registered = pyqtSignal(str)  # Sinal que emite o username registrado
 
-    def __init__(self):
-        super().__init__()
-        self.setWindowTitle("Registrar Novo Usuário")
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Registrar - MoneyYOU")
+        self.setMinimumSize(400, 400)
         self.setup_ui()
 
     def setup_ui(self):
         layout = QVBoxLayout()
+        layout.setContentsMargins(30, 30, 30, 30)
+        layout.setSpacing(15)
 
+        title = QLabel("Criar Conta")
+        title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        title.setStyleSheet("font-size: 18pt; font-weight: bold;")
+        layout.addWidget(title)
+
+        # Campos
         self.user_input = QLineEdit()
-        self.pass_input = QLineEdit()
-        self.pass_input.setEchoMode(QLineEdit.EchoMode.Password)
-        self.pass_confirm_input = QLineEdit()
-        self.pass_confirm_input.setEchoMode(QLineEdit.EchoMode.Password)
-
-        register_btn = QPushButton("Registrar")
-        register_btn.clicked.connect(self.register_user)
-
-        layout.addWidget(QLabel("Novo usuário:"))
+        self.user_input.setPlaceholderText("Username")
+        layout.addWidget(QLabel("Username:"))
         layout.addWidget(self.user_input)
+
+        self.email_input = QLineEdit()
+        self.email_input.setPlaceholderText("Email")
+        layout.addWidget(QLabel("Email:"))
+        layout.addWidget(self.email_input)
+
+        self.pass_input = QLineEdit()
+        self.pass_input.setPlaceholderText("Senha")
+        self.pass_input.setEchoMode(QLineEdit.EchoMode.Password)
         layout.addWidget(QLabel("Senha:"))
         layout.addWidget(self.pass_input)
-        layout.addWidget(QLabel("Confirmar senha:"))
-        layout.addWidget(self.pass_confirm_input)
-        layout.addWidget(register_btn)
+
+        self.confirm_pass_input = QLineEdit()
+        self.confirm_pass_input.setPlaceholderText("Confirmar Senha")
+        self.confirm_pass_input.setEchoMode(QLineEdit.EchoMode.Password)
+        layout.addWidget(QLabel("Confirmar Senha:"))
+        layout.addWidget(self.confirm_pass_input)
+
+        # Botões
+        btn_layout = QHBoxLayout()
+        self.register_btn = QPushButton("Registrar")
+        self.cancel_btn = QPushButton("Cancelar")
+        self.register_btn.setStyleSheet("background-color: #7C3AED; color: white; font-weight: bold;")
+        self.cancel_btn.setStyleSheet("background-color: #A855F7; color: white; font-weight: bold;")
+        btn_layout.addWidget(self.cancel_btn)
+        btn_layout.addWidget(self.register_btn)
+        layout.addLayout(btn_layout)
 
         self.setLayout(layout)
 
-    def register_user(self):
-        username = self.user_input.text().strip()
-        password = self.pass_input.text()
-        password_confirm = self.pass_confirm_input.text()
+        # Conexões
+        self.register_btn.clicked.connect(self.attempt_register)
+        self.cancel_btn.clicked.connect(self.close)
 
-        if not username:
-            QMessageBox.warning(self, "Erro", "Usuário não pode ser vazio.")
-            return
-        if password != password_confirm:
-            QMessageBox.warning(self, "Erro", "As senhas não coincidem.")
-            return
-        if len(password) < 4:
-            QMessageBox.warning(self, "Erro", "Senha deve ter no mínimo 4 caracteres.")
+    def attempt_register(self):
+        username = self.user_input.text().strip()
+        email = self.email_input.text().strip()
+        password = self.pass_input.text().strip()
+        confirm = self.confirm_pass_input.text().strip()
+
+        valid, msg = validate_registration(username, password, confirm, email)
+        if not valid:
+            QMessageBox.warning(self, "Erro", msg)
             return
 
         try:
-            auth_register_user(username, password)
-        except ValueError as e:
-            QMessageBox.warning(self, "Erro", str(e))
-            return
-
-        QMessageBox.information(self, "Sucesso", "Usuário registrado com sucesso!")
-        self.user_registered.emit(username, password)
-        self.close()
+            register_user(username, password, email)
+            QMessageBox.information(self, "Sucesso", "Usuário registrado com sucesso!")
+            self.user_registered.emit(username)  # emite o sinal
+            self.close()
+        except Exception as e:
+            QMessageBox.critical(self, "Erro", f"Falha ao registrar usuário: {str(e)}")

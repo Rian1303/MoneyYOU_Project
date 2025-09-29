@@ -1,11 +1,15 @@
-import sqlite3
-from pathlib import Path
-import sys
+# database/data_manager.py
 import os
+import sys
+import uuid
 from datetime import datetime
 
+import firebase_admin
+from firebase_admin import credentials, firestore
+
+
 # ========================
-# Caminho correto para arquivos
+# Caminho do Firebase Key
 # ========================
 def resource_path(relative_path):
     if getattr(sys, 'frozen', False):
@@ -14,116 +18,103 @@ def resource_path(relative_path):
         base_path = os.path.abspath(".")
     return os.path.join(base_path, relative_path)
 
-# ========================
-# Detecta se está empacotado
-# ========================
-IS_PACKAGED = getattr(sys, 'frozen', False)
-USE_FIREBASE = True  # Sempre usamos Firebase como principal
 
 # ========================
-# Configuração Firebase
+# Inicializa Firebase
 # ========================
-import firebase_admin
-from firebase_admin import credentials, firestore
-
 cred_path = resource_path("config/firebase_key.json")
-cred = credentials.Certificate(cred_path)
 if not firebase_admin._apps:
+    cred = credentials.Certificate(cred_path)
     firebase_admin.initialize_app(cred)
+
 db = firestore.client()
 
-# ========================
-# Caminho SQLite (backup)
-# ========================
-DB_PATH = Path(__file__).parent / "db.sqlite"
-
-def connect():
-    return sqlite3.connect(DB_PATH, timeout=10)
 
 # ========================
 # Adicionar transação
 # ========================
-def add_transaction(transaction):
+def add_transaction(transaction: dict) -> str:
+    """
+    Adiciona uma transação ao Firebase.
+    Retorna o ID gerado.
+    """
+
     # Preencher valores padrão
     transaction.setdefault("desc", "Sem descrição")
-    transaction.setdefault("valor", 0.0)
-    transaction.setdefault("tipo", "receita")
-    transaction.setdefault("data", datetime.now().strftime("%Y-%m-%d"))
-    transaction.setdefault("tipo_recorrencia", 0)
+    transaction.setdefault("amount", 0.0)
+    transaction.setdefault("type", "receita")
+    transaction.setdefault("date", datetime.now().strftime("%Y-%m-%d"))
+    transaction.setdefault("recurrence", "Única")
+    transaction.setdefault("currency", "BRL")
+    transaction.setdefault("category", "Outros")
 
-    # 🔥 Firebase (fonte principal)
+    # Gera ID único
+    temp_id = str(uuid.uuid4())
+    transaction.setdefault("id", temp_id)
+
+    # Salva no Firebase
     doc_ref = db.collection("transactions").add(transaction)
+    firebase_id = doc_ref[1].id
 
-    # 💾 SQLite (backup local)
-    try:
-        with connect() as conn:
-            cursor = conn.cursor()
-            cursor.execute("""
-                INSERT INTO transactions (user_id, desc, valor, tipo, data, tipo_recorrencia)
-                VALUES (?, ?, ?, ?, ?, ?)
-            """, (
-                transaction['user_id'],
-                transaction['desc'],
-                transaction['valor'],
-                transaction['tipo'],
-                transaction['data'],
-                transaction['tipo_recorrencia']
-            ))
-            conn.commit()
-    except Exception as e:
-        print(f"[SQLite Backup] Erro ao adicionar transação: {e}")
+    # Atualiza campo id com o ID real do Firebase
+    db.collection("transactions").document(firebase_id).update({"id": firebase_id})
 
-    return doc_ref[1].id  # retorna ID Firebase
+    return firebase_id
+
 
 # ========================
-# Editar transação (Firebase)
+# Editar transação
 # ========================
-def edit_transaction(doc_id, new_data):
-    doc_ref = db.collection("transactions").document(doc_id)
-    doc_ref.update(new_data)
-    # Não atualizamos SQLite, pois é só backup
+def edit_transaction(doc_id: str, new_data: dict):
+    db.collection("transactions").document(doc_id).update(new_data)
+
 
 # ========================
-# Deletar transação (Firebase)
+# Deletar transação
 # ========================
-def delete_transaction(doc_id):
+def delete_transaction(doc_id: str):
     db.collection("transactions").document(doc_id).delete()
-    # SQLite permanece intacto
+
 
 # ========================
-# Carregar transações (apenas Firebase)
+# Carregar transações
 # ========================
-def load_transactions(user_id=None):
+def load_transactions(user_id: str = None):
     docs = list(db.collection("transactions").stream())
     transactions = [doc.to_dict() for doc in docs]
+
     if user_id:
         transactions = [t for t in transactions if t.get("user_id") == user_id]
-    for t, doc in zip(transactions, docs):
-        t["id"] = doc.id
+
     return transactions
 
+
 # ========================
-# Exportar CSV (Firebase)
+# Exportar CSV
 # ========================
-def export_csv(path, user_id=None):
+def export_csv(path: str, user_id: str = None):
     import csv
     transactions = load_transactions(user_id)
     if not transactions:
         print("Nenhuma transação para exportar.")
         return
-    with open(path, 'w', newline='', encoding='utf-8') as csvfile:
+    with open(path, "w", newline="", encoding="utf-8") as csvfile:
         writer = csv.DictWriter(csvfile, fieldnames=transactions[0].keys())
         writer.writeheader()
         for t in transactions:
             writer.writerow(t)
     print(f"Transações exportadas para {path} com sucesso.")
 
+
+# ========================
+# Filtro
+# ========================
 def filter_transactions(transactions, start_date=None, end_date=None, tipo=None):
-        filtered = transactions
-        if start_date:
-            filtered = [t for t in filtered if t.get("data") >= start_date]
-        if end_date:
-            filtered = [t for t in filtered if t.get("data") <= end_date]
-        if tipo:
-            filtered = [t for t in filtered if t.get("tipo") == tipo]
-        return filtered
+    filtered = transactions
+    if start_date:
+        filtered = [t for t in filtered if t.get("date") >= start_date]
+    if end_date:
+        filtered = [t for t in filtered if t.get("date") <= end_date]
+    if tipo:
+        filtered = [t for t in filtered if t.get("type") == tipo]
+    return filtered
