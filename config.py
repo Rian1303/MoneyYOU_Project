@@ -38,9 +38,9 @@ APP_ICON = ICONS_DIR / "app_icon.png"
 # Informações do App
 # ==========================
 APP_INFO = {
-    "name": "Financial Organizer",
+    "name": "MoneyYOU",
     "version": "1.0.0",
-    "author": "Rian",
+    "author": "Rian P. Gomes",
     "description": "Organize suas finanças de forma simples e offline"
 }
 
