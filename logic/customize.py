@@ -25,3 +25,4 @@ class Customize:
         from PyQt6.QtWidgets import QApplication
         app = QApplication.instance()
         app.setStyleSheet(f":root {{ --accent-color: {color}; }}")
+    

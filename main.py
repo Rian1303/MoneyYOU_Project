@@ -12,7 +12,7 @@ from logic.theme_manager import load_theme_qss
 
 
 # Inicializa app
-app = QApplication(sys.argv)
+app = QApplication(sys.argdefv)
 '   '
 # Carrega o último tema usado
 load_theme_qss()
