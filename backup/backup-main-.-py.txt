@@ -1,0 +1,107 @@
+# main.py
+import sys
+import config
+from PyQt6.QtGui import QIcon
+from PyQt6.QtWidgets import QApplication, QMessageBox
+from ui.login_screen import LoginScreen
+from ui.dashboard import DashboardWindow
+from logic.theme_manager import load_theme_qss
+from logic.usr_config import UserConfigManager
+
+
+class AppController:
+    """Controla o fluxo principal da aplicação (login, dashboard, registro e temas)."""
+
+    def __init__(self):
+        # ✅ Cria apenas uma instância global da aplicação
+        self.app = QApplication(sys.argv)
+
+        # Define ícone global
+        icon_path = config.ICONS_DIR / "app_icon.png"
+        if icon_path.exists():
+            self.app.setWindowIcon(QIcon(str(icon_path)))
+
+        # Carrega tema padrão (light) antes do login
+        self.apply_stylesheet("light")
+
+        # Inicializa janelas
+        self.login_window = LoginScreen()
+        self.login_window.login_success.connect(self.show_dashboard)
+        self.login_window.open_register.connect(self.show_register)
+
+        self.dashboard_window = None
+        self.register_window = None
+
+        # Exibe tela de login
+        self.login_window.show()
+        sys.exit(self.app.exec())
+
+    # ==============================================================
+    # 🔹 Tema
+    # ==============================================================
+
+    def apply_stylesheet(self, theme_name: str):
+        """Aplica o QSS global baseado no tema escolhido."""
+        try:
+            qss = load_theme_qss(theme_name)
+            if qss:
+                self.app.setStyleSheet(qss)
+                print(f"[Tema] Aplicado: {theme_name}")
+            else:
+                print(f"[Tema] Arquivo para '{theme_name}' não encontrado. Usando padrão.")
+        except Exception as e:
+            print(f"[Tema] Erro ao aplicar '{theme_name}': {e}")
+
+    def listen_user_theme(self, user_id: str):
+        """Escuta mudanças em tempo real no tema do usuário no Firebase."""
+        self.user_config = UserConfigManager(user_id)
+
+        def on_config_update(data):
+            theme = data.get("theme", "light")
+            self.apply_stylesheet(theme)
+
+        # Listener Firebase → reaplica tema automaticamente
+        self.user_config.listen_config(on_config_update)
+
+        # Aplica o tema inicial do usuário
+        current_theme = self.user_config.get("theme", "light")
+        self.apply_stylesheet(current_theme)
+
+    # ==============================================================
+    # 🔹 Fluxo de telas
+    # ==============================================================
+
+    def show_dashboard(self, user_id):
+        """Abre o Dashboard com base no usuário logado."""
+        self.login_window.close()
+
+        # Escuta e aplica o tema do usuário logado
+        self.listen_user_theme(user_id)
+
+        # Abre a Dashboard
+        self.dashboard_window = DashboardWindow(user_id)
+        self.dashboard_window.show()
+
+    def show_register(self):
+        """Abre a tela de registro."""
+        from ui.register_window import RegisterWindow
+        self.register_window = RegisterWindow()
+        self.register_window.user_registered.connect(self.handle_new_user)
+        self.register_window.show()
+
+    def handle_new_user(self, username):
+        """Chamado após o registro de um novo usuário."""
+        print(f"Novo usuário registrado: {username}")
+        QMessageBox.information(
+            self.login_window,
+            "Sucesso",
+            f"Usuário '{username}' registrado! Agora faça login."
+        )
+
+
+# ==============================================================
+# 🔹 Execução principal
+# ==============================================================
+
+if __name__ == "__main__":
+    AppController()

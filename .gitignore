@@ -1,5 +1,6 @@
 # Ignorar configs sensíveis
 config/
+.backup/
 
 # Ignorar arquivos de ambiente
 .env
